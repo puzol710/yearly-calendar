@@ -31,6 +31,9 @@ const historyDrawer = document.getElementById("historyDrawer");
 const historyTitle = document.getElementById("historyTitle");
 const historyBody = document.getElementById("historyBody");
 const historyClose = document.getElementById("historyClose");
+const clearFilterBtn = document.getElementById("clearFilterBtn");
+const eventSubmitBtn = document.getElementById("eventSubmitBtn");
+const eventCancelBtn = document.getElementById("eventCancelBtn");
 
 const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const monthNames = [
@@ -138,7 +141,7 @@ function bindEvents() {
       until: eventUntil.value,
     };
 
-    await supabaseClient.from("events").insert({
+    const payload = {
       title: eventTitle.value.trim(),
       category_id: eventCategory.value,
       all_day: allDay,
@@ -148,15 +151,32 @@ function bindEvents() {
       end_time: allDay ? null : eventEndTime.value,
       time_zone: eventTimeZone.value,
       recurrence,
-      created_by: state.user.id,
       updated_by: state.user.id,
-    });
+    };
+
+    if (state.editingEventId) {
+      await supabaseClient
+        .from("events")
+        .update(payload)
+        .eq("id", state.editingEventId);
+    } else {
+      await supabaseClient.from("events").insert({
+        ...payload,
+        created_by: state.user.id,
+      });
+    }
 
     eventForm.reset();
     eventAllDay.checked = true;
     toggleTimeInputs();
     syncFormDefaults();
+    clearEditingState();
     await refreshData();
+  });
+
+  eventCancelBtn.addEventListener("click", () => {
+    clearEditingState();
+    syncFormDefaults();
   });
 
   window.addEventListener("resize", () => {
@@ -168,6 +188,12 @@ function bindEvents() {
     if (event.target === historyDrawer) {
       closeHistoryDrawer();
     }
+  });
+
+  clearFilterBtn.addEventListener("click", () => {
+    state.filterCategoryIds = [];
+    renderAll();
+    saveSettings();
   });
 }
 
@@ -222,6 +248,9 @@ async function handleSession(session) {
 
 async function refreshData() {
   await Promise.all([loadCategories(), loadEvents()]);
+  state.filterCategoryIds = state.filterCategoryIds.filter((id) =>
+    state.categories.some((category) => category.id === id)
+  );
   await loadProfiles();
   renderAll();
 }
@@ -297,6 +326,56 @@ function resolveUserLabel(userId) {
   if (!userId) return "";
   const profile = state.profiles.get(userId);
   return profile?.full_name || profile?.email || "Unknown";
+}
+
+function loadEventIntoForm(event) {
+  state.editingEventId = event.id;
+  eventTitle.value = event.title;
+  eventCategory.value = event.category_id || "";
+  eventAllDay.checked = Boolean(event.all_day);
+  eventStartDate.value = event.start_date;
+  eventEndDate.value = event.end_date;
+  eventStartTime.value = event.start_time || "09:00";
+  eventEndTime.value = event.end_time || "10:00";
+  eventTimeZone.value = event.time_zone || state.displayTimeZone;
+
+  eventRecurrence.value = event.recurrence?.freq || "none";
+  eventInterval.value = event.recurrence?.interval || 1;
+  eventUntil.value = event.recurrence?.until || "";
+  weekdayPicker
+    .querySelectorAll("input")
+    .forEach((input) => (input.checked = false));
+  if (event.recurrence?.byWeekday?.length) {
+    event.recurrence.byWeekday.forEach((day) => {
+      const checkbox = weekdayPicker.querySelector(`input[value="${day}"]`);
+      if (checkbox) checkbox.checked = true;
+    });
+  }
+
+  weekdayPicker.style.display =
+    eventRecurrence.value === "weekly" ? "grid" : "none";
+  toggleTimeInputs();
+  updateEventFormMode();
+}
+
+function clearEditingState() {
+  state.editingEventId = null;
+  updateEventFormMode();
+}
+
+function updateEventFormMode() {
+  if (state.editingEventId) {
+    eventSubmitBtn.textContent = "Save Changes";
+    eventCancelBtn.disabled = false;
+  } else {
+    eventSubmitBtn.textContent = "Add Event";
+    eventCancelBtn.disabled = true;
+  }
+}
+
+function updateFilterUI() {
+  clearFilterBtn.disabled =
+    state.filterCategoryIds.length === 0 || !state.user;
 }
 
 function setSignedOutUI() {
@@ -422,6 +501,7 @@ function syncFormDefaults() {
   weekdayPicker.style.display =
     eventRecurrence.value === "weekly" ? "grid" : "none";
   toggleTimeInputs();
+  updateEventFormMode();
 }
 
 function toggleTimeInputs() {
@@ -436,10 +516,12 @@ function renderAll() {
   renderEventFormOptions();
   renderEventsList();
   renderCalendar();
+  updateFilterUI();
 }
 
 function renderCategories() {
   categoryList.innerHTML = "";
+  const isDisabled = !state.user;
   state.categories.forEach((category) => {
     const row = document.createElement("div");
     row.className = "category-item";
@@ -457,23 +539,43 @@ function renderCategories() {
     left.appendChild(swatch);
     left.appendChild(label);
 
+    const controls = document.createElement("div");
+    controls.className = "category-controls";
+
+    const colorInput = document.createElement("input");
+    colorInput.type = "color";
+    colorInput.value = category.color || "#888888";
+    colorInput.disabled = isDisabled;
+    colorInput.addEventListener("change", async () => {
+      if (!state.user || !supabaseClient) return;
+      await supabaseClient
+        .from("categories")
+        .update({ color: colorInput.value })
+        .eq("id", category.id);
+      await refreshData();
+    });
+
     const toggle = document.createElement("input");
     toggle.type = "checkbox";
-    toggle.checked = !state.hiddenCategoryIds.includes(category.id);
+    toggle.checked = state.filterCategoryIds.includes(category.id);
+    toggle.disabled = isDisabled;
     toggle.addEventListener("change", () => {
       if (toggle.checked) {
-        state.hiddenCategoryIds = state.hiddenCategoryIds.filter(
+        state.filterCategoryIds = [...state.filterCategoryIds, category.id];
+      } else {
+        state.filterCategoryIds = state.filterCategoryIds.filter(
           (id) => id !== category.id
         );
-      } else {
-        state.hiddenCategoryIds = [...state.hiddenCategoryIds, category.id];
       }
-      renderCalendar();
+      renderAll();
       saveSettings();
     });
 
+    controls.appendChild(colorInput);
+    controls.appendChild(toggle);
+
     row.appendChild(left);
-    row.appendChild(toggle);
+    row.appendChild(controls);
     categoryList.appendChild(row);
   });
 }
@@ -500,6 +602,7 @@ function renderEventFormOptions() {
 function renderEventsList() {
   eventList.innerHTML = "";
   const displayTZ = state.displayTimeZone;
+  const isDisabled = !state.user;
   state.events.forEach((event) => {
     const category = state.categories.find((c) => c.id === event.category_id);
     const card = document.createElement("div");
@@ -532,6 +635,7 @@ function renderEventsList() {
     const remove = document.createElement("button");
     remove.textContent = "Remove";
     remove.style.marginTop = "6px";
+    remove.disabled = isDisabled;
     remove.addEventListener("click", async () => {
       if (!state.user || !supabaseClient) return;
       await supabaseClient.from("events").delete().eq("id", event.id);
@@ -540,12 +644,21 @@ function renderEventsList() {
 
     const historyBtn = document.createElement("button");
     historyBtn.textContent = "History";
+    historyBtn.disabled = isDisabled;
     historyBtn.addEventListener("click", async () => {
       await openHistoryDrawer(event);
     });
 
+    const editBtn = document.createElement("button");
+    editBtn.textContent = "Edit";
+    editBtn.disabled = isDisabled;
+    editBtn.addEventListener("click", () => {
+      loadEventIntoForm(event);
+    });
+
     const actions = document.createElement("div");
     actions.className = "event-actions";
+    actions.appendChild(editBtn);
     actions.appendChild(historyBtn);
     actions.appendChild(remove);
 
@@ -566,6 +679,7 @@ function renderCalendar() {
   monthRows.innerHTML = "";
 
   const segmentsByMonth = buildEventSegments(year, displayTZ);
+  const todayParts = getDatePartsInTimeZone(new Date(), displayTZ);
 
   for (let month = 0; month < 12; month += 1) {
     const row = document.createElement("div");
@@ -593,6 +707,9 @@ function renderCalendar() {
         const parts = getDatePartsInTimeZone(dateUTC, displayTZ);
         if (parts.weekday === 0 || parts.weekday === 6) {
           cell.classList.add("weekend");
+        }
+        if (compareDateParts({ year, month, day: i }, todayParts) < 0) {
+          cell.classList.add("past-day");
         }
         const number = document.createElement("div");
         number.className = "day-number";
@@ -680,11 +797,10 @@ function renderEventBarsForMonth(container, segments, dayCount) {
 
 function buildEventSegments(year, displayTZ) {
   const segmentsByMonth = new Map();
-  const visibleCategories = new Set(
-    state.categories
-      .filter((c) => !state.hiddenCategoryIds.includes(c.id))
-      .map((c) => c.id)
-  );
+  const visibleCategories =
+    state.filterCategoryIds.length > 0
+      ? new Set(state.filterCategoryIds)
+      : new Set(state.categories.map((c) => c.id));
   const dayCount = 31;
 
   const occurrences = state.events
@@ -984,10 +1100,12 @@ function loadSettings() {
     year: new Date().getFullYear(),
     displayTimeZone: localTZ,
     hiddenCategoryIds: [],
+    filterCategoryIds: [],
     categories: [],
     events: [],
     user: null,
     profiles: new Map(),
+    editingEventId: null,
   };
 
   try {
@@ -1013,6 +1131,7 @@ function saveSettings() {
       year: state.year,
       displayTimeZone: state.displayTimeZone,
       hiddenCategoryIds: state.hiddenCategoryIds,
+      filterCategoryIds: state.filterCategoryIds,
     };
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(payload));
   } catch (error) {

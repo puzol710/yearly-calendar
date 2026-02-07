@@ -39,6 +39,12 @@
 
         <section class="panel">
           <div class="panel-title">Categories</div>
+          <div class="category-toolbar">
+            <button id="clearFilterBtn" type="button" class="ghost">
+              Show all
+            </button>
+            <span class="category-hint">Filter by checked categories</span>
+          </div>
           <div id="categoryList" class="category-list"></div>
           <form id="categoryForm" class="inline-form">
             <input id="categoryName" type="text" placeholder="Category name" required />
@@ -118,7 +124,14 @@
               <label><input type="checkbox" value="0" />Sun</label>
             </div>
 
-            <button type="submit" class="primary">Add Event</button>
+            <div class="event-actions-row">
+              <button id="eventSubmitBtn" type="submit" class="primary">
+                Add Event
+              </button>
+              <button id="eventCancelBtn" type="button" class="ghost" disabled>
+                Cancel
+              </button>
+            </div>
           </form>
         </section>
 
