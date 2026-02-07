@@ -229,7 +229,11 @@ function bindEvents() {
     if (event.target === eventPopup) closeEventPopup();
   });
   eventPopupCancel.addEventListener("click", () => {
-    togglePopupEdit(false);
+    if (popupMode === "create") {
+      closeEventPopup();
+    } else {
+      togglePopupEdit(false);
+    }
   });
   eventPopupEdit.addEventListener("click", () => {
     togglePopupEdit(true);
@@ -273,9 +277,21 @@ function bindEvents() {
       updated_by: state.user.id,
     };
 
-    await supabaseClient.from("events").update(payload).eq("id", popupEventId);
-    await refreshData();
-    togglePopupEdit(false);
+    if (popupMode === "create") {
+      await supabaseClient.from("events").insert({
+        ...payload,
+        created_by: state.user.id,
+      });
+      await refreshData();
+      closeEventPopup();
+    } else {
+      await supabaseClient
+        .from("events")
+        .update(payload)
+        .eq("id", popupEventId);
+      await refreshData();
+      togglePopupEdit(false);
+    }
   });
 
   monthRows.addEventListener("mousedown", handleCalendarMouseDown);
@@ -469,6 +485,7 @@ function openEventPopup(eventId) {
   const event = state.events.find((item) => item.id === eventId);
   if (!event) return;
   popupEventId = eventId;
+  popupMode = "view";
   const category = state.categories.find((c) => c.id === event.category_id);
   const range = formatEventRange(event, state.displayTimeZone);
   eventPopupTitle.textContent = event.title;
@@ -485,15 +502,20 @@ function closeEventPopup() {
   eventPopup.classList.remove("open");
   eventPopup.setAttribute("aria-hidden", "true");
   popupEventId = null;
+  popupMode = "view";
 }
 
 function togglePopupEdit(enabled) {
   if (enabled) {
     eventPopupView.classList.add("hidden");
     eventPopupForm.classList.add("active");
+    eventPopupEdit.style.display = "none";
+    eventPopupCancel.textContent = "Cancel";
   } else {
     eventPopupView.classList.remove("hidden");
     eventPopupForm.classList.remove("active");
+    eventPopupEdit.style.display = "";
+    eventPopupCancel.textContent = "Cancel";
   }
 }
 
@@ -539,8 +561,38 @@ function getSelectedPopupWeekdays() {
   ).map((el) => Number(el.value));
 }
 
+function openCreatePopup(startParts, endParts) {
+  if (!state.user) return;
+  popupEventId = null;
+  popupMode = "create";
+  eventPopup.classList.add("open");
+  eventPopup.setAttribute("aria-hidden", "false");
+  eventPopupEdit.style.display = "none";
+  eventPopupView.classList.add("hidden");
+  eventPopupForm.classList.add("active");
+
+  eventPopupTitleInput.value = "";
+  eventPopupCategory.value = eventCategory.value || "";
+  eventPopupAllDay.checked = true;
+  eventPopupStartDate.value = formatDateParts(startParts);
+  eventPopupEndDate.value = formatDateParts(endParts);
+  eventPopupStartTime.value = "09:00";
+  eventPopupEndTime.value = "10:00";
+  eventPopupTimeZone.value = state.displayTimeZone;
+  eventPopupRecurrence.value = "none";
+  eventPopupInterval.value = 1;
+  eventPopupUntil.value = "";
+  eventPopupWeekdays
+    .querySelectorAll("input")
+    .forEach((input) => (input.checked = false));
+  eventPopupWeekdays.style.display = "none";
+  eventPopupDescription.value = "";
+  togglePopupTimeInputs();
+}
+
 let dragSelection = null;
 let popupEventId = null;
+let popupMode = "view";
 
 function handleCalendarMouseDown(event) {
   const cell = event.target.closest(".day-cell");
@@ -580,6 +632,8 @@ function handleCalendarMouseUp() {
   toggleTimeInputs();
   updateEventFormMode();
   eventTitle.focus();
+
+  openCreatePopup(min, max);
 }
 
 function updateDragHighlight() {

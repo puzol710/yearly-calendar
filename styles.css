@@ -425,17 +425,19 @@ body {
 }
 
 .event-actions {
-  display: flex;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
 }
 
 .event-actions button {
   font-size: 11px;
-  padding: 4px 8px;
+  padding: 5px 8px;
   border-radius: 999px;
   border: 1px solid var(--grid-line);
   background: #fff;
   cursor: pointer;
+  width: 100%;
 }
 
 .content {
@@ -451,13 +453,13 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 6px;
+  margin-bottom: 2px;
 }
 
 .year-group {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .year-title {
