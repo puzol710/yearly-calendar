@@ -22,6 +22,7 @@ const eventRecurrence = document.getElementById("eventRecurrence");
 const eventInterval = document.getElementById("eventInterval");
 const eventUntil = document.getElementById("eventUntil");
 const weekdayPicker = document.getElementById("weekdayPicker");
+const eventDescription = document.getElementById("eventDescription");
 const eventList = document.getElementById("eventList");
 const displayTimeZone = document.getElementById("displayTimeZone");
 const signInBtn = document.getElementById("signInBtn");
@@ -34,6 +35,13 @@ const historyClose = document.getElementById("historyClose");
 const clearFilterBtn = document.getElementById("clearFilterBtn");
 const eventSubmitBtn = document.getElementById("eventSubmitBtn");
 const eventCancelBtn = document.getElementById("eventCancelBtn");
+const categoryPills = document.getElementById("categoryPills");
+const eventPopup = document.getElementById("eventPopup");
+const eventPopupTitle = document.getElementById("eventPopupTitle");
+const eventPopupMeta = document.getElementById("eventPopupMeta");
+const eventPopupDesc = document.getElementById("eventPopupDesc");
+const eventPopupEdit = document.getElementById("eventPopupEdit");
+const eventPopupClose = document.getElementById("eventPopupClose");
 
 const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const monthNames = [
@@ -151,6 +159,7 @@ function bindEvents() {
       end_time: allDay ? null : eventEndTime.value,
       time_zone: eventTimeZone.value,
       recurrence,
+      description: eventDescription.value.trim() || null,
       updated_by: state.user.id,
     };
 
@@ -194,6 +203,11 @@ function bindEvents() {
     state.filterCategoryIds = [];
     renderAll();
     saveSettings();
+  });
+
+  eventPopupClose.addEventListener("click", closeEventPopup);
+  eventPopup.addEventListener("click", (event) => {
+    if (event.target === eventPopup) closeEventPopup();
   });
 }
 
@@ -338,6 +352,7 @@ function loadEventIntoForm(event) {
   eventStartTime.value = event.start_time || "09:00";
   eventEndTime.value = event.end_time || "10:00";
   eventTimeZone.value = event.time_zone || state.displayTimeZone;
+  eventDescription.value = event.description || "";
 
   eventRecurrence.value = event.recurrence?.freq || "none";
   eventInterval.value = event.recurrence?.interval || 1;
@@ -376,6 +391,29 @@ function updateEventFormMode() {
 function updateFilterUI() {
   clearFilterBtn.disabled =
     state.filterCategoryIds.length === 0 || !state.user;
+}
+
+function openEventPopup(eventId) {
+  const event = state.events.find((item) => item.id === eventId);
+  if (!event) return;
+  const category = state.categories.find((c) => c.id === event.category_id);
+  const range = formatEventRange(event, state.displayTimeZone);
+  eventPopupTitle.textContent = event.title;
+  eventPopupMeta.textContent = `${category?.name || "Uncategorized"} · ${range}`;
+  eventPopupDesc.textContent = event.description || "No description";
+  eventPopup.classList.add("open");
+  eventPopup.setAttribute("aria-hidden", "false");
+  eventPopupEdit.disabled = !state.user;
+  eventPopupEdit.onclick = () => {
+    if (!state.user) return;
+    closeEventPopup();
+    loadEventIntoForm(event);
+  };
+}
+
+function closeEventPopup() {
+  eventPopup.classList.remove("open");
+  eventPopup.setAttribute("aria-hidden", "true");
 }
 
 function setSignedOutUI() {
@@ -483,7 +521,10 @@ function summarizeSnapshot(snapshot) {
     snapshot.start_date && snapshot.end_date
       ? `Dates: ${snapshot.start_date} → ${snapshot.end_date}`
       : "";
-  return [title, dates].filter(Boolean).join(" · ");
+  const description = snapshot.description
+    ? `Desc: ${String(snapshot.description).slice(0, 120)}`
+    : "";
+  return [title, dates, description].filter(Boolean).join(" · ");
 }
 
 function syncFormDefaults() {
@@ -498,6 +539,7 @@ function syncFormDefaults() {
   eventEndDate.value = dateString;
   eventStartTime.value = "09:00";
   eventEndTime.value = "10:00";
+  eventDescription.value = "";
   weekdayPicker.style.display =
     eventRecurrence.value === "weekly" ? "grid" : "none";
   toggleTimeInputs();
@@ -513,6 +555,7 @@ function toggleTimeInputs() {
 function renderAll() {
   yearTitle.textContent = state.year;
   renderCategories();
+  renderCategoryPills();
   renderEventFormOptions();
   renderEventsList();
   renderCalendar();
@@ -669,6 +712,34 @@ function renderEventsList() {
   });
 }
 
+function renderCategoryPills() {
+  categoryPills.innerHTML = "";
+  if (!state.user) return;
+  state.categories.forEach((category) => {
+    const pill = document.createElement("button");
+    pill.type = "button";
+    pill.className = "category-pill";
+    pill.textContent = category.name;
+    if (state.filterCategoryIds.includes(category.id)) {
+      pill.classList.add("active");
+      pill.style.background = category.color;
+    }
+    pill.style.borderColor = category.color;
+    pill.addEventListener("click", () => {
+      if (state.filterCategoryIds.includes(category.id)) {
+        state.filterCategoryIds = state.filterCategoryIds.filter(
+          (id) => id !== category.id
+        );
+      } else {
+        state.filterCategoryIds = [...state.filterCategoryIds, category.id];
+      }
+      renderAll();
+      saveSettings();
+    });
+    categoryPills.appendChild(pill);
+  });
+}
+
 function renderCalendar() {
   const displayTZ = state.displayTimeZone;
   const year = state.year;
@@ -776,6 +847,11 @@ function renderEventBarsForMonth(container, segments, dayCount) {
     bar.style.top = `${trackIndex * (barHeight + barGap)}px`;
     bar.style.background = segment.color;
     bar.textContent = segment.title;
+    bar.dataset.eventId = segment.eventId;
+    bar.addEventListener("click", (event) => {
+      event.stopPropagation();
+      openEventPopup(segment.eventId);
+    });
 
     if (!segment.allDay) {
       const time = document.createElement("span");
@@ -852,14 +928,15 @@ function buildEventSegments(year, displayTZ) {
       const segmentStartIndex = segmentStart - 1;
       const segmentEndIndex = segmentEnd - 1;
 
-      const segment = {
-        title: event.title,
-        color: category?.color || "#999",
-        allDay: event.all_day,
-        timeLabel,
-        startIndex: segmentStartIndex,
-        endIndex: segmentEndIndex,
-      };
+    const segment = {
+      title: event.title,
+      color: category?.color || "#999",
+      allDay: event.all_day,
+      timeLabel,
+      eventId: event.id,
+      startIndex: segmentStartIndex,
+      endIndex: segmentEndIndex,
+    };
 
       if (!segmentsByMonth.has(month)) {
         segmentsByMonth.set(month, []);

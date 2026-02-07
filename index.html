@@ -123,6 +123,10 @@
               <label><input type="checkbox" value="6" />Sat</label>
               <label><input type="checkbox" value="0" />Sun</label>
             </div>
+            <label class="field">
+              <span>Description</span>
+              <textarea id="eventDescription" rows="3" placeholder="Notes"></textarea>
+            </label>
 
             <div class="event-actions-row">
               <button id="eventSubmitBtn" type="submit" class="primary">
@@ -143,7 +147,10 @@
 
       <main class="content">
         <header class="topbar">
-          <div class="year-title" id="yearTitle"></div>
+          <div class="year-group">
+            <div class="year-title" id="yearTitle"></div>
+            <div id="categoryPills" class="category-pills"></div>
+          </div>
           <div class="view-tabs">
             <button class="active" disabled>Year</button>
             <button class="disabled" title="Monthly view planned" disabled>Month</button>
@@ -168,6 +175,18 @@
           <button id="historyClose" type="button" class="ghost">Close</button>
         </div>
         <div id="historyBody" class="history-body"></div>
+      </div>
+    </div>
+
+    <div id="eventPopup" class="event-popup" aria-hidden="true">
+      <div class="event-popup-card">
+        <div class="event-popup-title" id="eventPopupTitle"></div>
+        <div class="event-popup-meta" id="eventPopupMeta"></div>
+        <div class="event-popup-desc" id="eventPopupDesc"></div>
+        <div class="event-popup-actions">
+          <button id="eventPopupEdit" type="button">Edit</button>
+          <button id="eventPopupClose" type="button" class="ghost">Close</button>
+        </div>
       </div>
     </div>
 

@@ -184,6 +184,60 @@ body {
   color: var(--muted);
 }
 
+.event-popup {
+  position: fixed;
+  inset: 0;
+  background: rgba(24, 20, 16, 0.2);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+}
+
+.event-popup.open {
+  display: flex;
+}
+
+.event-popup-card {
+  width: min(420px, 90vw);
+  background: #fff;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+  display: grid;
+  gap: 8px;
+}
+
+.event-popup-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.event-popup-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.event-popup-desc {
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.event-popup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.event-popup-actions button {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--grid-line);
+  background: #fff;
+  cursor: pointer;
+}
+
 .field {
   display: flex;
   flex-direction: column;
@@ -273,6 +327,11 @@ body {
   background: #fff;
   color: var(--ink);
   border: 1px solid var(--grid-line);
+}
+
+.event-form textarea {
+  resize: vertical;
+  min-height: 70px;
 }
 
 .weekday-picker {
@@ -382,9 +441,39 @@ body {
   margin-bottom: 6px;
 }
 
+.year-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .year-title {
   font-family: var(--font-head);
   font-size: 24px;
+}
+
+.category-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.category-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  border: 1px solid var(--grid-line);
+  background: #fff;
+  cursor: pointer;
+  user-select: none;
+}
+
+.category-pill.active {
+  color: #fff;
+  border-color: transparent;
 }
 
 .view-tabs {
@@ -535,6 +624,8 @@ body {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 .event-bar.timed {
