@@ -26,18 +26,6 @@
         </section>
 
         <section class="panel">
-          <div class="panel-title">Calendar Settings</div>
-          <label class="field">
-            <span>Year</span>
-            <input id="yearInput" type="number" min="1970" max="2100" />
-          </label>
-          <label class="field">
-            <span>Display Time Zone</span>
-            <select id="displayTimeZone"></select>
-          </label>
-        </section>
-
-        <section class="panel">
           <div class="panel-title">Categories</div>
           <div class="category-toolbar">
             <button id="clearFilterBtn" type="button" class="ghost">
@@ -151,10 +139,15 @@
             <div class="year-title" id="yearTitle"></div>
             <div id="categoryPills" class="category-pills"></div>
           </div>
-          <div class="view-tabs">
-            <button class="active" disabled>Year</button>
-            <button class="disabled" title="Monthly view planned" disabled>Month</button>
-            <button class="disabled" title="Daily view planned" disabled>Day</button>
+          <div class="calendar-settings">
+            <label class="field compact">
+              <span>Year</span>
+              <input id="yearInput" type="number" min="1970" max="2100" />
+            </label>
+            <label class="field compact">
+              <span>Time zone</span>
+              <select id="displayTimeZone"></select>
+            </label>
           </div>
         </header>
 
@@ -180,13 +173,93 @@
 
     <div id="eventPopup" class="event-popup" aria-hidden="true">
       <div class="event-popup-card">
-        <div class="event-popup-title" id="eventPopupTitle"></div>
-        <div class="event-popup-meta" id="eventPopupMeta"></div>
-        <div class="event-popup-desc" id="eventPopupDesc"></div>
-        <div class="event-popup-actions">
-          <button id="eventPopupEdit" type="button">Edit</button>
-          <button id="eventPopupClose" type="button" class="ghost">Close</button>
+        <div id="eventPopupView" class="event-popup-view">
+          <div class="event-popup-title" id="eventPopupTitle"></div>
+          <div class="event-popup-meta" id="eventPopupMeta"></div>
+          <div class="event-popup-desc" id="eventPopupDesc"></div>
+          <div class="event-popup-actions">
+            <button id="eventPopupEdit" type="button">Edit</button>
+            <button id="eventPopupClose" type="button" class="ghost">Close</button>
+          </div>
         </div>
+        <form id="eventPopupForm" class="event-popup-form">
+          <label class="field">
+            <span>Title</span>
+            <input id="eventPopupTitleInput" type="text" required />
+          </label>
+          <label class="field">
+            <span>Category</span>
+            <select id="eventPopupCategory"></select>
+          </label>
+          <label class="field checkbox">
+            <input id="eventPopupAllDay" type="checkbox" checked />
+            <span>All-day</span>
+          </label>
+          <div class="grid-2">
+            <label class="field">
+              <span>Start date</span>
+              <input id="eventPopupStartDate" type="date" required />
+            </label>
+            <label class="field time-field">
+              <span>Start time</span>
+              <input id="eventPopupStartTime" type="time" />
+            </label>
+          </div>
+          <div class="grid-2">
+            <label class="field">
+              <span>End date</span>
+              <input id="eventPopupEndDate" type="date" required />
+            </label>
+            <label class="field time-field">
+              <span>End time</span>
+              <input id="eventPopupEndTime" type="time" />
+            </label>
+          </div>
+          <label class="field">
+            <span>Time zone</span>
+            <select id="eventPopupTimeZone"></select>
+          </label>
+          <div class="panel-subtitle">Recurrence</div>
+          <label class="field">
+            <span>Frequency</span>
+            <select id="eventPopupRecurrence">
+              <option value="none">None</option>
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          </label>
+          <div class="grid-2">
+            <label class="field">
+              <span>Interval</span>
+              <input id="eventPopupInterval" type="number" min="1" value="1" />
+            </label>
+            <label class="field">
+              <span>Until</span>
+              <input id="eventPopupUntil" type="date" />
+            </label>
+          </div>
+          <div id="eventPopupWeekdays" class="weekday-picker">
+            <label><input type="checkbox" value="1" />Mon</label>
+            <label><input type="checkbox" value="2" />Tue</label>
+            <label><input type="checkbox" value="3" />Wed</label>
+            <label><input type="checkbox" value="4" />Thu</label>
+            <label><input type="checkbox" value="5" />Fri</label>
+            <label><input type="checkbox" value="6" />Sat</label>
+            <label><input type="checkbox" value="0" />Sun</label>
+          </div>
+          <label class="field">
+            <span>Description</span>
+            <textarea id="eventPopupDescription" rows="3"></textarea>
+          </label>
+          <div class="event-popup-actions">
+            <button id="eventPopupSave" type="submit">Save</button>
+            <button id="eventPopupCancel" type="button" class="ghost">
+              Cancel
+            </button>
+          </div>
+        </form>
       </div>
     </div>
 

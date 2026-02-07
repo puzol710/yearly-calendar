@@ -42,6 +42,23 @@ const eventPopupMeta = document.getElementById("eventPopupMeta");
 const eventPopupDesc = document.getElementById("eventPopupDesc");
 const eventPopupEdit = document.getElementById("eventPopupEdit");
 const eventPopupClose = document.getElementById("eventPopupClose");
+const eventPopupView = document.getElementById("eventPopupView");
+const eventPopupForm = document.getElementById("eventPopupForm");
+const eventPopupTitleInput = document.getElementById("eventPopupTitleInput");
+const eventPopupCategory = document.getElementById("eventPopupCategory");
+const eventPopupAllDay = document.getElementById("eventPopupAllDay");
+const eventPopupStartDate = document.getElementById("eventPopupStartDate");
+const eventPopupStartTime = document.getElementById("eventPopupStartTime");
+const eventPopupEndDate = document.getElementById("eventPopupEndDate");
+const eventPopupEndTime = document.getElementById("eventPopupEndTime");
+const eventPopupTimeZone = document.getElementById("eventPopupTimeZone");
+const eventPopupRecurrence = document.getElementById("eventPopupRecurrence");
+const eventPopupInterval = document.getElementById("eventPopupInterval");
+const eventPopupUntil = document.getElementById("eventPopupUntil");
+const eventPopupWeekdays = document.getElementById("eventPopupWeekdays");
+const eventPopupDescription = document.getElementById("eventPopupDescription");
+const eventPopupSave = document.getElementById("eventPopupSave");
+const eventPopupCancel = document.getElementById("eventPopupCancel");
 
 const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const monthNames = [
@@ -83,13 +100,15 @@ function initialize() {
 function populateTimeZones() {
   displayTimeZone.innerHTML = "";
   eventTimeZone.innerHTML = "";
+  eventPopupTimeZone.innerHTML = "";
 
   tzList.forEach((tz) => {
     const option = document.createElement("option");
     option.value = tz;
     option.textContent = tz;
     displayTimeZone.appendChild(option.cloneNode(true));
-    eventTimeZone.appendChild(option);
+    eventTimeZone.appendChild(option.cloneNode(true));
+    eventPopupTimeZone.appendChild(option);
   });
 }
 
@@ -209,6 +228,59 @@ function bindEvents() {
   eventPopup.addEventListener("click", (event) => {
     if (event.target === eventPopup) closeEventPopup();
   });
+  eventPopupCancel.addEventListener("click", () => {
+    togglePopupEdit(false);
+  });
+  eventPopupEdit.addEventListener("click", () => {
+    togglePopupEdit(true);
+  });
+  eventPopupAllDay.addEventListener("change", () => {
+    togglePopupTimeInputs();
+  });
+  eventPopupRecurrence.addEventListener("change", () => {
+    eventPopupWeekdays.style.display =
+      eventPopupRecurrence.value === "weekly" ? "grid" : "none";
+  });
+  eventPopupForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!state.user || !supabaseClient) return;
+    if (!eventPopupTitleInput.value.trim()) return;
+    if (!eventPopupCategory.value) return;
+
+    const allDay = eventPopupAllDay.checked;
+    if (!allDay && (!eventPopupStartTime.value || !eventPopupEndTime.value)) {
+      return;
+    }
+
+    const recurrence = {
+      freq: eventPopupRecurrence.value,
+      interval: Math.max(1, Number(eventPopupInterval.value) || 1),
+      byWeekday: getSelectedPopupWeekdays(),
+      until: eventPopupUntil.value,
+    };
+
+    const payload = {
+      title: eventPopupTitleInput.value.trim(),
+      category_id: eventPopupCategory.value,
+      all_day: allDay,
+      start_date: eventPopupStartDate.value,
+      end_date: eventPopupEndDate.value,
+      start_time: allDay ? null : eventPopupStartTime.value,
+      end_time: allDay ? null : eventPopupEndTime.value,
+      time_zone: eventPopupTimeZone.value,
+      recurrence,
+      description: eventPopupDescription.value.trim() || null,
+      updated_by: state.user.id,
+    };
+
+    await supabaseClient.from("events").update(payload).eq("id", popupEventId);
+    await refreshData();
+    togglePopupEdit(false);
+  });
+
+  monthRows.addEventListener("mousedown", handleCalendarMouseDown);
+  monthRows.addEventListener("mousemove", handleCalendarMouseMove);
+  window.addEventListener("mouseup", handleCalendarMouseUp);
 }
 
 function setupAuth() {
@@ -396,6 +468,7 @@ function updateFilterUI() {
 function openEventPopup(eventId) {
   const event = state.events.find((item) => item.id === eventId);
   if (!event) return;
+  popupEventId = eventId;
   const category = state.categories.find((c) => c.id === event.category_id);
   const range = formatEventRange(event, state.displayTimeZone);
   eventPopupTitle.textContent = event.title;
@@ -404,16 +477,139 @@ function openEventPopup(eventId) {
   eventPopup.classList.add("open");
   eventPopup.setAttribute("aria-hidden", "false");
   eventPopupEdit.disabled = !state.user;
-  eventPopupEdit.onclick = () => {
-    if (!state.user) return;
-    closeEventPopup();
-    loadEventIntoForm(event);
-  };
+  togglePopupEdit(false);
+  fillPopupForm(event);
 }
 
 function closeEventPopup() {
   eventPopup.classList.remove("open");
   eventPopup.setAttribute("aria-hidden", "true");
+  popupEventId = null;
+}
+
+function togglePopupEdit(enabled) {
+  if (enabled) {
+    eventPopupView.classList.add("hidden");
+    eventPopupForm.classList.add("active");
+  } else {
+    eventPopupView.classList.remove("hidden");
+    eventPopupForm.classList.remove("active");
+  }
+}
+
+function fillPopupForm(event) {
+  eventPopupTitleInput.value = event.title;
+  eventPopupCategory.value = event.category_id || "";
+  eventPopupAllDay.checked = Boolean(event.all_day);
+  eventPopupStartDate.value = event.start_date;
+  eventPopupEndDate.value = event.end_date;
+  eventPopupStartTime.value = event.start_time || "09:00";
+  eventPopupEndTime.value = event.end_time || "10:00";
+  eventPopupTimeZone.value = event.time_zone || state.displayTimeZone;
+  eventPopupDescription.value = event.description || "";
+
+  eventPopupRecurrence.value = event.recurrence?.freq || "none";
+  eventPopupInterval.value = event.recurrence?.interval || 1;
+  eventPopupUntil.value = event.recurrence?.until || "";
+  eventPopupWeekdays
+    .querySelectorAll("input")
+    .forEach((input) => (input.checked = false));
+  if (event.recurrence?.byWeekday?.length) {
+    event.recurrence.byWeekday.forEach((day) => {
+      const checkbox = eventPopupWeekdays.querySelector(
+        `input[value="${day}"]`
+      );
+      if (checkbox) checkbox.checked = true;
+    });
+  }
+  eventPopupWeekdays.style.display =
+    eventPopupRecurrence.value === "weekly" ? "grid" : "none";
+  togglePopupTimeInputs();
+}
+
+function togglePopupTimeInputs() {
+  const disabled = eventPopupAllDay.checked;
+  eventPopupStartTime.disabled = disabled;
+  eventPopupEndTime.disabled = disabled;
+}
+
+function getSelectedPopupWeekdays() {
+  return Array.from(
+    eventPopupWeekdays.querySelectorAll("input:checked")
+  ).map((el) => Number(el.value));
+}
+
+let dragSelection = null;
+let popupEventId = null;
+
+function handleCalendarMouseDown(event) {
+  const cell = event.target.closest(".day-cell");
+  if (!cell || cell.classList.contains("out-month")) return;
+  if (event.target.closest(".event-bar")) return;
+  const parts = getCellDateParts(cell);
+  if (!parts) return;
+
+  dragSelection = {
+    start: parts,
+    end: parts,
+  };
+  updateDragHighlight();
+}
+
+function handleCalendarMouseMove(event) {
+  if (!dragSelection) return;
+  const cell = event.target.closest(".day-cell");
+  if (!cell || cell.classList.contains("out-month")) return;
+  const parts = getCellDateParts(cell);
+  if (!parts) return;
+  dragSelection.end = parts;
+  updateDragHighlight();
+}
+
+function handleCalendarMouseUp() {
+  if (!dragSelection) return;
+  const { start, end } = dragSelection;
+  const min = compareDateParts(start, end) <= 0 ? start : end;
+  const max = compareDateParts(start, end) <= 0 ? end : start;
+  dragSelection = null;
+  clearDragHighlight();
+
+  eventStartDate.value = formatDateParts(min);
+  eventEndDate.value = formatDateParts(max);
+  eventAllDay.checked = true;
+  toggleTimeInputs();
+  updateEventFormMode();
+  eventTitle.focus();
+}
+
+function updateDragHighlight() {
+  clearDragHighlight();
+  if (!dragSelection) return;
+  const { start, end } = dragSelection;
+  const min = compareDateParts(start, end) <= 0 ? start : end;
+  const max = compareDateParts(start, end) <= 0 ? end : start;
+  monthRows.querySelectorAll(".day-cell").forEach((cell) => {
+    const parts = getCellDateParts(cell);
+    if (!parts) return;
+    if (compareDateParts(parts, min) >= 0 && compareDateParts(parts, max) <= 0) {
+      cell.classList.add("selecting");
+    }
+  });
+}
+
+function clearDragHighlight() {
+  monthRows.querySelectorAll(".day-cell.selecting").forEach((cell) => {
+    cell.classList.remove("selecting");
+  });
+}
+
+function getCellDateParts(cell) {
+  const month = Number(cell.dataset.month);
+  const day = Number(cell.dataset.day);
+  const year = state.year;
+  if (!Number.isFinite(month) || !Number.isFinite(day)) return null;
+  if (day > daysInMonth(year, month)) return null;
+  return { year, month, day };
 }
 
 function setSignedOutUI() {
@@ -625,6 +821,7 @@ function renderCategories() {
 
 function renderEventFormOptions() {
   eventCategory.innerHTML = "";
+  eventPopupCategory.innerHTML = "";
   if (state.categories.length === 0) {
     const option = document.createElement("option");
     option.value = "";
@@ -632,6 +829,7 @@ function renderEventFormOptions() {
     option.disabled = true;
     option.selected = true;
     eventCategory.appendChild(option);
+    eventPopupCategory.appendChild(option.cloneNode(true));
     return;
   }
   state.categories.forEach((category) => {
@@ -639,6 +837,7 @@ function renderEventFormOptions() {
     option.value = category.id;
     option.textContent = category.name;
     eventCategory.appendChild(option);
+    eventPopupCategory.appendChild(option.cloneNode(true));
   });
 }
 
@@ -766,6 +965,8 @@ function renderCalendar() {
     for (let i = 1; i <= dayCount; i += 1) {
       const cell = document.createElement("div");
       cell.className = "day-cell";
+      cell.dataset.month = String(month);
+      cell.dataset.day = String(i);
 
       if (i <= daysInMonth(year, month)) {
         const dateUTC = zonedTimeToUtc(

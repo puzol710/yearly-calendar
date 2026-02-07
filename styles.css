@@ -208,6 +208,19 @@ body {
   gap: 8px;
 }
 
+.event-popup-form {
+  display: none;
+  gap: 8px;
+}
+
+.event-popup-form.active {
+  display: grid;
+}
+
+.event-popup-view.hidden {
+  display: none;
+}
+
 .event-popup-title {
   font-size: 16px;
   font-weight: 600;
@@ -476,24 +489,21 @@ body {
   border-color: transparent;
 }
 
-.view-tabs {
+.calendar-settings {
   display: flex;
-  gap: 8px;
+  gap: 10px;
+  align-items: center;
 }
 
-.view-tabs button {
-  border: 1px solid var(--grid-line);
-  background: #fff;
-  padding: 6px 12px;
-  border-radius: 999px;
-  cursor: not-allowed;
-  color: var(--muted);
+.field.compact {
+  margin-bottom: 0;
+  font-size: 11px;
 }
 
-.view-tabs button.active {
-  background: var(--accent);
-  color: #fff;
-  cursor: default;
+.field.compact input,
+.field.compact select {
+  padding: 6px 8px;
+  font-size: 12px;
 }
 
 .calendar {
@@ -584,6 +594,10 @@ body {
 
 .day-cell.past-day {
   background: rgba(180, 172, 165, 0.18);
+}
+
+.day-cell.selecting {
+  background: rgba(106, 76, 147, 0.18);
 }
 
 .day-number {
