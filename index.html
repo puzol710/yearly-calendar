@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Annual Calendar</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-title">Annual Calendar</div>
+          <div class="brand-sub">Year view with categories and spans</div>
+        </div>
+
+        <section class="panel auth-panel">
+          <div class="panel-title">Account</div>
+          <div class="auth-row">
+            <div id="userLabel" class="auth-user">Not signed in</div>
+            <button id="signInBtn" type="button">Sign in with Google</button>
+            <button id="signOutBtn" type="button" class="ghost" disabled>
+              Sign out
+            </button>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">Calendar Settings</div>
+          <label class="field">
+            <span>Year</span>
+            <input id="yearInput" type="number" min="1970" max="2100" />
+          </label>
+          <label class="field">
+            <span>Display Time Zone</span>
+            <select id="displayTimeZone"></select>
+          </label>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">Categories</div>
+          <div id="categoryList" class="category-list"></div>
+          <form id="categoryForm" class="inline-form">
+            <input id="categoryName" type="text" placeholder="Category name" required />
+            <input id="categoryColor" type="color" value="#c97b84" />
+            <button type="submit">Add</button>
+          </form>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">Create Event</div>
+          <form id="eventForm" class="event-form">
+            <label class="field">
+              <span>Title</span>
+              <input id="eventTitle" type="text" placeholder="Event title" required />
+            </label>
+            <label class="field">
+              <span>Category</span>
+              <select id="eventCategory"></select>
+            </label>
+            <label class="field checkbox">
+              <input id="eventAllDay" type="checkbox" checked />
+              <span>All-day</span>
+            </label>
+            <div class="grid-2">
+              <label class="field">
+                <span>Start date</span>
+                <input id="eventStartDate" type="date" required />
+              </label>
+              <label class="field time-field">
+                <span>Start time</span>
+                <input id="eventStartTime" type="time" />
+              </label>
+            </div>
+            <div class="grid-2">
+              <label class="field">
+                <span>End date</span>
+                <input id="eventEndDate" type="date" required />
+              </label>
+              <label class="field time-field">
+                <span>End time</span>
+                <input id="eventEndTime" type="time" />
+              </label>
+            </div>
+            <label class="field">
+              <span>Time zone</span>
+              <select id="eventTimeZone"></select>
+            </label>
+
+            <div class="panel-subtitle">Recurrence</div>
+            <label class="field">
+              <span>Frequency</span>
+              <select id="eventRecurrence">
+                <option value="none">None</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </label>
+            <div class="grid-2">
+              <label class="field">
+                <span>Interval</span>
+                <input id="eventInterval" type="number" min="1" value="1" />
+              </label>
+              <label class="field">
+                <span>Until</span>
+                <input id="eventUntil" type="date" />
+              </label>
+            </div>
+            <div id="weekdayPicker" class="weekday-picker">
+              <label><input type="checkbox" value="1" />Mon</label>
+              <label><input type="checkbox" value="2" />Tue</label>
+              <label><input type="checkbox" value="3" />Wed</label>
+              <label><input type="checkbox" value="4" />Thu</label>
+              <label><input type="checkbox" value="5" />Fri</label>
+              <label><input type="checkbox" value="6" />Sat</label>
+              <label><input type="checkbox" value="0" />Sun</label>
+            </div>
+
+            <button type="submit" class="primary">Add Event</button>
+          </form>
+        </section>
+
+        <section class="panel">
+          <div class="panel-title">Events</div>
+          <div id="eventList" class="event-list"></div>
+        </section>
+      </aside>
+
+      <main class="content">
+        <header class="topbar">
+          <div class="year-title" id="yearTitle"></div>
+          <div class="view-tabs">
+            <button class="active" disabled>Year</button>
+            <button class="disabled" title="Monthly view planned" disabled>Month</button>
+            <button class="disabled" title="Daily view planned" disabled>Day</button>
+          </div>
+        </header>
+
+        <section class="calendar">
+          <div class="weekday-row" id="weekdayRow"></div>
+          <div class="months" id="monthRows"></div>
+        </section>
+      </main>
+    </div>
+
+    <div id="historyDrawer" class="history-drawer" aria-hidden="true">
+      <div class="history-panel">
+        <div class="history-header">
+          <div>
+            <div class="panel-title">Event History</div>
+            <div id="historyTitle" class="history-subtitle"></div>
+          </div>
+          <button id="historyClose" type="button" class="ghost">Close</button>
+        </div>
+        <div id="historyBody" class="history-body"></div>
+      </div>
+    </div>
+
+    <script>
+      window.__SUPABASE__ = {
+        url: "https://upvbltmtwiujbaafmyty.supabase.co",
+        anonKey: "sb_publishable_8IvCbZ-gfRuxwUIoAt8XHA_gtoMkIiY",
+      };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
