@@ -46,10 +46,28 @@ const eventPopupCancel = document.getElementById("eventPopupCancel");
 const settingsBtn = document.getElementById("settingsBtn");
 const settingsPopup = document.getElementById("settingsPopup");
 const settingsClose = document.getElementById("settingsClose");
+const openCalendarPickerBtn = document.getElementById("openCalendarPicker");
+const calendarNameInput = document.getElementById("calendarNameInput");
+const defaultCalendarToggle = document.getElementById("defaultCalendarToggle");
+const saveCalendarSettings = document.getElementById("saveCalendarSettings");
+const sharedWithList = document.getElementById("sharedWithList");
+const viewOnlyBanner = document.getElementById("viewOnlyBanner");
+const shareBtn = document.getElementById("shareBtn");
+const sharePopup = document.getElementById("sharePopup");
+const shareEmail = document.getElementById("shareEmail");
+const shareRole = document.getElementById("shareRole");
+const shareSend = document.getElementById("shareSend");
+const shareClose = document.getElementById("shareClose");
 const userBtn = document.getElementById("userBtn");
 const userDrawer = document.getElementById("userDrawer");
 const userClose = document.getElementById("userClose");
 const userAvatar = document.getElementById("userAvatar");
+const authGate = document.getElementById("authGate");
+const gateSignIn = document.getElementById("gateSignIn");
+const calendarPicker = document.getElementById("calendarPicker");
+const calendarList = document.getElementById("calendarList");
+const newCalendarName = document.getElementById("newCalendarName");
+const createCalendarBtn = document.getElementById("createCalendarBtn");
 
 const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const monthNames = [
@@ -129,6 +147,7 @@ function bindEvents() {
     if (event.target === eventPopup) closeEventPopup();
   });
   settingsBtn.addEventListener("click", () => {
+    updateSettingsUI();
     settingsPopup.classList.add("open");
     settingsPopup.setAttribute("aria-hidden", "false");
   });
@@ -141,6 +160,54 @@ function bindEvents() {
       settingsPopup.classList.remove("open");
       settingsPopup.setAttribute("aria-hidden", "true");
     }
+  });
+  openCalendarPickerBtn.addEventListener("click", () => {
+    settingsPopup.classList.remove("open");
+    settingsPopup.setAttribute("aria-hidden", "true");
+    state.showCalendarPicker = true;
+    calendarPicker.classList.remove("hidden");
+  });
+  saveCalendarSettings.addEventListener("click", async () => {
+    await saveCalendarSettingsForActive();
+  });
+  shareBtn.addEventListener("click", () => {
+    if (!state.activeCalendarId) return;
+    sharePopup.classList.add("open");
+    sharePopup.setAttribute("aria-hidden", "false");
+  });
+  shareClose.addEventListener("click", () => {
+    sharePopup.classList.remove("open");
+    sharePopup.setAttribute("aria-hidden", "true");
+  });
+  sharePopup.addEventListener("click", (event) => {
+    if (event.target === sharePopup) {
+      sharePopup.classList.remove("open");
+      sharePopup.setAttribute("aria-hidden", "true");
+    }
+  });
+  shareSend.addEventListener("click", async () => {
+    if (!state.user || !supabaseClient) return;
+    if (!state.activeCalendarId) return;
+    if (state.activeCalendarRole !== "owner") return;
+    const email = shareEmail.value.trim();
+    if (!email) return;
+    const role = shareRole.value;
+    const { error } = await supabaseClient.functions.invoke("send-invite", {
+      body: {
+        email,
+        calendar_id: state.activeCalendarId,
+        role,
+        inviter_id: state.user.id,
+        app_url: window.location.origin,
+      },
+    });
+    if (error) {
+      alert("Invite failed. Please check Edge Function setup.");
+      return;
+    }
+    shareEmail.value = "";
+    sharePopup.classList.remove("open");
+    sharePopup.setAttribute("aria-hidden", "true");
   });
   userBtn.addEventListener("click", () => {
     userDrawer.classList.add("open");
@@ -155,6 +222,18 @@ function bindEvents() {
       userDrawer.classList.remove("open");
       userDrawer.setAttribute("aria-hidden", "true");
     }
+  });
+  gateSignIn.addEventListener("click", async () => {
+    if (!supabaseClient) return;
+    await supabaseClient.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}${window.location.pathname}`,
+      },
+    });
+  });
+  createCalendarBtn.addEventListener("click", async () => {
+    await createCalendarFromPicker();
   });
   categoryEditBtn.addEventListener("click", () => {
     openCategoryManager();
@@ -189,6 +268,7 @@ function bindEvents() {
   eventPopupForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (!state.user || !supabaseClient) return;
+    if (!state.activeCalendarId) return;
     if (!eventPopupTitleInput.value.trim()) return;
     if (!eventPopupCategory.value) return;
 
@@ -222,6 +302,7 @@ function bindEvents() {
       await supabaseClient.from("events").insert({
         ...payload,
         created_by: state.user.id,
+        calendar_id: state.activeCalendarId,
       });
       await refreshData();
       closeEventPopup();
@@ -275,6 +356,12 @@ function setupAuth() {
 async function handleSession(session) {
   if (!session?.user) {
     state.user = null;
+    state.activeCalendarRole = "";
+    state.activeCalendarId = null;
+    state.activeCalendarName = "";
+    state.defaultCalendarId = "";
+    state.showCalendarPicker = false;
+    state.calendarMembers = [];
     state.categories = [];
     state.events = [];
     state.profiles = new Map();
@@ -285,12 +372,21 @@ async function handleSession(session) {
 
   state.user = session.user;
   await upsertProfile(session.user);
+  await loadUserPreferences();
+  await handleInviteFromUrl();
+  await loadCalendars();
   await refreshData();
   setSignedInUI(session.user);
 }
 
 async function refreshData() {
-  await Promise.all([loadCategories(), loadEvents()]);
+  if (!state.activeCalendarId) {
+    state.categories = [];
+    state.events = [];
+    renderAll();
+    return;
+  }
+  await Promise.all([loadCategories(), loadEvents(), loadCalendarMembers()]);
   state.filterCategoryIds = state.filterCategoryIds.filter((id) =>
     state.categories.some((category) => category.id === id)
   );
@@ -298,10 +394,182 @@ async function refreshData() {
   renderAll();
 }
 
+async function loadCalendars() {
+  const { data, error } = await supabaseClient
+    .from("calendar_members")
+    .select("role, calendar_id, calendars(name)")
+    .eq("user_id", state.user.id);
+
+  if (error) {
+    state.calendars = [];
+    state.activeCalendarId = null;
+    state.activeCalendarRole = "";
+    renderCalendarPicker();
+    return;
+  }
+
+  state.calendars = (data || []).map((row) => ({
+    id: row.calendar_id,
+    name: row.calendars?.name || "Untitled",
+    role: row.role,
+  }));
+
+  if (!state.calendars.length) {
+    await createDefaultCalendar();
+    return;
+  }
+
+  const preferred = state.defaultCalendarId
+    ? state.calendars.find((c) => c.id === state.defaultCalendarId)
+    : null;
+  if (
+    !state.activeCalendarId ||
+    !state.calendars.some((c) => c.id === state.activeCalendarId)
+  ) {
+    const initial = preferred || state.calendars[0];
+    state.activeCalendarId = initial.id;
+    state.activeCalendarName = initial.name;
+    state.activeCalendarRole = initial.role;
+    saveSettings();
+    state.showCalendarPicker = !preferred;
+  } else {
+    const active = state.calendars.find((c) => c.id === state.activeCalendarId);
+    state.activeCalendarName = active?.name || "";
+    state.activeCalendarRole = active?.role || "";
+  }
+
+  renderCalendarPicker();
+}
+
+async function createDefaultCalendar() {
+  const name = "My Calendar";
+  const { data, error } = await supabaseClient
+    .from("calendars")
+    .insert({ name, owner_id: state.user.id })
+    .select()
+    .single();
+  if (error) {
+    renderCalendarPicker();
+    return;
+  }
+  await supabaseClient.from("calendar_members").insert({
+    calendar_id: data.id,
+    user_id: state.user.id,
+    role: "owner",
+  });
+  await loadCalendars();
+}
+
+function renderCalendarPicker() {
+  calendarList.innerHTML = "";
+  if (!state.user) {
+    authGate.classList.remove("hidden");
+    calendarPicker.classList.add("hidden");
+    return;
+  }
+  authGate.classList.add("hidden");
+
+  if (!state.calendars.length) {
+    calendarPicker.classList.remove("hidden");
+    return;
+  }
+
+  if (!state.showCalendarPicker && state.activeCalendarId) {
+    calendarPicker.classList.add("hidden");
+  } else {
+    calendarPicker.classList.remove("hidden");
+  }
+  state.calendars.forEach((calendar) => {
+    const row = document.createElement("div");
+    row.className = "calendar-item";
+    const label = document.createElement("span");
+    label.textContent = `${calendar.name} · ${calendar.role}`;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "Open";
+    button.addEventListener("click", async () => {
+      state.activeCalendarId = calendar.id;
+      state.activeCalendarName = calendar.name;
+      state.activeCalendarRole = calendar.role;
+      state.showCalendarPicker = false;
+      saveSettings();
+      calendarPicker.classList.add("hidden");
+      await refreshData();
+      updatePermissionUI();
+    });
+    row.appendChild(label);
+    row.appendChild(button);
+    calendarList.appendChild(row);
+  });
+}
+
+async function createCalendarFromPicker() {
+  if (!state.user || !supabaseClient) return;
+  const name = newCalendarName.value.trim() || "Untitled Calendar";
+  const { data, error } = await supabaseClient
+    .from("calendars")
+    .insert({ name, owner_id: state.user.id })
+    .select()
+    .single();
+  if (error) return;
+  await supabaseClient.from("calendar_members").insert({
+    calendar_id: data.id,
+    user_id: state.user.id,
+    role: "owner",
+  });
+  newCalendarName.value = "";
+  await loadCalendars();
+  state.activeCalendarId = data.id;
+  state.activeCalendarName = data.name;
+  state.activeCalendarRole = "owner";
+  state.showCalendarPicker = false;
+  saveSettings();
+  calendarPicker.classList.add("hidden");
+  await refreshData();
+  updatePermissionUI();
+}
+
+async function handleInviteFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get("invite");
+  if (!token || !state.user) return;
+
+  const { data, error } = await supabaseClient
+    .from("calendar_invites")
+    .select("*")
+    .eq("token", token)
+    .single();
+
+  if (error || !data) return;
+  if (data.accepted_at) return;
+  if (data.email && data.email !== state.user.email) return;
+
+  await supabaseClient.from("calendar_members").insert({
+    calendar_id: data.calendar_id,
+    user_id: state.user.id,
+    role: data.role,
+  });
+  await supabaseClient
+    .from("calendar_invites")
+    .update({ accepted_at: new Date().toISOString() })
+    .eq("id", data.id);
+
+  params.delete("invite");
+  window.history.replaceState({}, "", window.location.pathname);
+}
+
+function isReadOnly() {
+  return (
+    !state.user ||
+    !state.activeCalendarId ||
+    state.activeCalendarRole === "viewer"
+  );
+}
 async function loadCategories() {
   const { data, error } = await supabaseClient
     .from("categories")
     .select("*")
+    .eq("calendar_id", state.activeCalendarId)
     .order("name", { ascending: true });
 
   if (error) {
@@ -315,6 +583,7 @@ async function loadEvents() {
   const { data, error } = await supabaseClient
     .from("events")
     .select("*")
+    .eq("calendar_id", state.activeCalendarId)
     .order("start_date", { ascending: true });
 
   if (error) {
@@ -352,7 +621,59 @@ async function loadProfiles() {
   state.profiles = map;
 }
 
+async function loadUserPreferences() {
+  if (!state.user || !supabaseClient) return;
+  const { data } = await supabaseClient
+    .from("profiles")
+    .select("default_calendar_id")
+    .eq("id", state.user.id)
+    .single();
+  state.defaultCalendarId = data?.default_calendar_id || "";
+}
+
+async function loadCalendarMembers() {
+  if (!state.activeCalendarId || !supabaseClient) {
+    state.calendarMembers = [];
+    return;
+  }
+  const { data, error } = await supabaseClient
+    .from("calendar_members")
+    .select("id, user_id, role")
+    .eq("calendar_id", state.activeCalendarId);
+
+  if (error) {
+    state.calendarMembers = [];
+    return;
+  }
+
+  state.calendarMembers = data || [];
+  const ids = Array.from(
+    new Set(state.calendarMembers.map((member) => member.user_id))
+  );
+  if (!ids.length) return;
+
+  const { data: profiles } = await supabaseClient
+    .from("profiles")
+    .select("id, full_name, email")
+    .in("id", ids);
+
+  const map = new Map(state.profiles);
+  (profiles || []).forEach((profile) => {
+    map.set(profile.id, profile);
+  });
+  state.profiles = map;
+}
+
 async function upsertProfile(user) {
+  let defaultCalendarId = null;
+  const { data: existing } = await supabaseClient
+    .from("profiles")
+    .select("default_calendar_id")
+    .eq("id", user.id)
+    .single();
+  if (existing?.default_calendar_id) {
+    defaultCalendarId = existing.default_calendar_id;
+  }
   const profile = {
     id: user.id,
     email: user.email,
@@ -361,6 +682,7 @@ async function upsertProfile(user) {
       user.user_metadata?.name ||
       user.email,
     avatar_url: user.user_metadata?.avatar_url || "",
+    default_calendar_id: defaultCalendarId,
   };
   await supabaseClient.from("profiles").upsert(profile, { onConflict: "id" });
 }
@@ -389,7 +711,7 @@ function closeCategoryManager() {
 
 function renderCategoryManagerList() {
   categoryManagerList.innerHTML = "";
-  const isDisabled = !state.user;
+  const isDisabled = isReadOnly();
   state.categories.forEach((category) => {
     const row = document.createElement("div");
     row.className = "popup-category-item";
@@ -446,12 +768,14 @@ function renderCategoryManagerList() {
 }
 
 async function createCategoryFromManager() {
-  if (!state.user || !supabaseClient) return;
+  if (!state.user || !supabaseClient || isReadOnly()) return;
+  if (!state.activeCalendarId) return;
   const name = categoryManagerName.value.trim();
   if (!name) return;
   await supabaseClient.from("categories").insert({
     name,
     color: categoryManagerColor.value,
+    calendar_id: state.activeCalendarId,
     created_by: state.user.id,
   });
   categoryManagerName.value = "";
@@ -464,6 +788,7 @@ function openEventPopup(eventId) {
   if (!event) return;
   popupEventId = eventId;
   popupMode = "view";
+  const readOnly = isReadOnly();
   const category = state.categories.find((c) => c.id === event.category_id);
   const range = formatEventRange(event, state.displayTimeZone);
   eventPopupTitle.textContent = event.title;
@@ -476,9 +801,9 @@ function openEventPopup(eventId) {
 
   const editBtn = document.createElement("button");
   editBtn.textContent = "Edit";
-  editBtn.disabled = !state.user;
+  editBtn.disabled = readOnly;
   editBtn.addEventListener("click", () => {
-    if (!state.user) return;
+    if (readOnly) return;
     togglePopupEdit(true);
   });
 
@@ -490,9 +815,9 @@ function openEventPopup(eventId) {
   });
 
   removeBtn.textContent = "Remove";
-  removeBtn.disabled = !state.user;
+  removeBtn.disabled = readOnly;
   removeBtn.addEventListener("click", async () => {
-    if (!state.user || !supabaseClient) return;
+    if (readOnly || !supabaseClient) return;
     await supabaseClient.from("events").delete().eq("id", event.id);
     closeEventPopup();
     await refreshData();
@@ -608,6 +933,7 @@ let popupEventId = null;
 let popupMode = "view";
 
 function handleCalendarMouseDown(event) {
+  if (isReadOnly()) return;
   const cell = event.target.closest(".day-cell");
   if (!cell || cell.classList.contains("out-month")) return;
   if (event.target.closest(".event-bar")) return;
@@ -676,7 +1002,7 @@ function setSignedOutUI() {
   userLabel.textContent = "Sign in to edit";
   signInBtn.disabled = false;
   signOutBtn.disabled = true;
-  setFormsDisabled(true);
+  updatePermissionUI();
   userAvatar.textContent = "GU";
 }
 
@@ -688,7 +1014,7 @@ function setSignedInUI(user) {
     "Signed in";
   signInBtn.disabled = true;
   signOutBtn.disabled = false;
-  setFormsDisabled(false);
+  updatePermissionUI();
   const label =
     user.user_metadata?.full_name ||
     user.user_metadata?.name ||
@@ -711,6 +1037,145 @@ function setFormsDisabled(disabled) {
       el.disabled = disabled;
     });
   categoryEditBtn.disabled = disabled;
+}
+
+function updatePermissionUI() {
+  const readOnly = isReadOnly();
+  setFormsDisabled(readOnly);
+  shareBtn.disabled = !state.user || state.activeCalendarRole !== "owner";
+  viewOnlyBanner.classList.toggle(
+    "hidden",
+    !readOnly || !state.activeCalendarId
+  );
+  updateSettingsUI();
+}
+
+function updateSettingsUI() {
+  if (!calendarNameInput || !defaultCalendarToggle || !sharedWithList) return;
+  calendarNameInput.value = state.activeCalendarName || "";
+  calendarNameInput.disabled =
+    !state.user || state.activeCalendarRole !== "owner";
+  defaultCalendarToggle.checked =
+    !!state.activeCalendarId &&
+    !!state.defaultCalendarId &&
+    state.activeCalendarId === state.defaultCalendarId;
+  defaultCalendarToggle.disabled = !state.user || !state.activeCalendarId;
+  saveCalendarSettings.disabled = !state.user || !state.activeCalendarId;
+  renderSharedWithList();
+}
+
+async function saveCalendarSettingsForActive() {
+  if (!state.user || !supabaseClient || !state.activeCalendarId) return;
+  const name = calendarNameInput.value.trim();
+  if (state.activeCalendarRole === "owner" && name && name !== state.activeCalendarName) {
+    await supabaseClient
+      .from("calendars")
+      .update({ name })
+      .eq("id", state.activeCalendarId);
+    state.activeCalendarName = name;
+  }
+
+  if (defaultCalendarToggle.checked) {
+    await supabaseClient
+      .from("profiles")
+      .update({ default_calendar_id: state.activeCalendarId })
+      .eq("id", state.user.id);
+    state.defaultCalendarId = state.activeCalendarId;
+  } else if (state.defaultCalendarId === state.activeCalendarId) {
+    await supabaseClient
+      .from("profiles")
+      .update({ default_calendar_id: null })
+      .eq("id", state.user.id);
+    state.defaultCalendarId = "";
+  }
+
+  await loadCalendars();
+  renderAll();
+}
+
+function renderSharedWithList() {
+  if (!sharedWithList) return;
+  sharedWithList.innerHTML = "";
+  if (!state.activeCalendarId) {
+    sharedWithList.textContent = "No calendar selected.";
+    return;
+  }
+  if (!state.calendarMembers.length) {
+    sharedWithList.textContent = "No shared members yet.";
+    return;
+  }
+
+  const sorted = [...state.calendarMembers].sort((a, b) => {
+    if (a.role === b.role) return 0;
+    if (a.role === "owner") return -1;
+    if (b.role === "owner") return 1;
+    if (a.role === "editor" && b.role === "viewer") return -1;
+    if (a.role === "viewer" && b.role === "editor") return 1;
+    return 0;
+  });
+
+  sorted.forEach((member) => {
+    const row = document.createElement("div");
+    row.className = "shared-member";
+
+    const label = document.createElement("div");
+    label.className = "shared-member-label";
+    const name = resolveUserLabel(member.user_id) || "Unknown";
+    const selfTag = member.user_id === state.user?.id ? " (You)" : "";
+    label.textContent = `${name}${selfTag}`;
+
+    const role = document.createElement("div");
+    role.className = "shared-member-role";
+
+    row.appendChild(label);
+    row.appendChild(role);
+
+    const canManage =
+      state.activeCalendarRole === "owner" && member.role !== "owner";
+
+    if (canManage) {
+      const roleSelect = document.createElement("select");
+      roleSelect.className = "shared-member-select";
+      ["editor", "viewer"].forEach((value) => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = value;
+        roleSelect.appendChild(option);
+      });
+      roleSelect.value = member.role;
+      roleSelect.addEventListener("change", async () => {
+        await supabaseClient
+          .from("calendar_members")
+          .update({ role: roleSelect.value })
+          .eq("id", member.id);
+        await loadCalendarMembers();
+        renderSharedWithList();
+      });
+      role.appendChild(roleSelect);
+    } else {
+      role.textContent = member.role;
+    }
+
+    if (
+      canManage &&
+      member.user_id !== state.user?.id
+    ) {
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.textContent = "Revoke";
+      removeBtn.addEventListener("click", async () => {
+        await supabaseClient
+          .from("calendar_members")
+          .delete()
+          .eq("id", member.id);
+        await loadCalendarMembers();
+        renderSharedWithList();
+      });
+      row.appendChild(removeBtn);
+    }
+
+    sharedWithList.appendChild(row);
+  });
 }
 
 async function openHistoryDrawer(event) {
@@ -828,11 +1293,13 @@ function toggleTimeInputs() {
 }
 
 function renderAll() {
-  yearTitle.textContent = `Annual Calendar - ${state.year}`;
+  const baseTitle = state.activeCalendarName || "Annual Calendar";
+  yearTitle.textContent = `${baseTitle} - ${state.year}`;
   renderCategoryPills();
   renderEventFormOptions();
   renderCalendar();
   updateFilterUI();
+  updateSettingsUI();
 }
 
 function renderEventFormOptions() {
@@ -1330,6 +1797,13 @@ function loadSettings() {
     displayTimeZone: localTZ,
     hiddenCategoryIds: [],
     filterCategoryIds: [],
+    calendars: [],
+    activeCalendarId: null,
+    activeCalendarName: "",
+    activeCalendarRole: "",
+    defaultCalendarId: "",
+    showCalendarPicker: false,
+    calendarMembers: [],
     categories: [],
     events: [],
     user: null,
@@ -1360,6 +1834,8 @@ function saveSettings() {
       displayTimeZone: state.displayTimeZone,
       hiddenCategoryIds: state.hiddenCategoryIds,
       filterCategoryIds: state.filterCategoryIds,
+      activeCalendarId: state.activeCalendarId,
+      activeCalendarName: state.activeCalendarName,
     };
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(payload));
   } catch (error) {
