@@ -5,47 +5,31 @@ const yearInput = document.getElementById("yearInput");
 const yearTitle = document.getElementById("yearTitle");
 const weekdayRow = document.getElementById("weekdayRow");
 const monthRows = document.getElementById("monthRows");
-const categoryList = document.getElementById("categoryList");
-const categoryForm = document.getElementById("categoryForm");
-const categoryName = document.getElementById("categoryName");
-const categoryColor = document.getElementById("categoryColor");
-const eventForm = document.getElementById("eventForm");
-const eventTitle = document.getElementById("eventTitle");
-const eventCategory = document.getElementById("eventCategory");
-const eventAllDay = document.getElementById("eventAllDay");
-const eventStartDate = document.getElementById("eventStartDate");
-const eventStartTime = document.getElementById("eventStartTime");
-const eventEndDate = document.getElementById("eventEndDate");
-const eventEndTime = document.getElementById("eventEndTime");
-const eventTimeZone = document.getElementById("eventTimeZone");
-const eventRecurrence = document.getElementById("eventRecurrence");
-const eventInterval = document.getElementById("eventInterval");
-const eventUntil = document.getElementById("eventUntil");
-const weekdayPicker = document.getElementById("weekdayPicker");
-const eventDescription = document.getElementById("eventDescription");
-const eventList = document.getElementById("eventList");
 const displayTimeZone = document.getElementById("displayTimeZone");
 const signInBtn = document.getElementById("signInBtn");
 const signOutBtn = document.getElementById("signOutBtn");
 const userLabel = document.getElementById("userLabel");
 const historyDrawer = document.getElementById("historyDrawer");
+const historyPanel = historyDrawer.querySelector(".history-panel");
 const historyTitle = document.getElementById("historyTitle");
 const historyBody = document.getElementById("historyBody");
 const historyClose = document.getElementById("historyClose");
-const clearFilterBtn = document.getElementById("clearFilterBtn");
-const eventSubmitBtn = document.getElementById("eventSubmitBtn");
-const eventCancelBtn = document.getElementById("eventCancelBtn");
 const categoryPills = document.getElementById("categoryPills");
+const categoryEditBtn = document.getElementById("categoryEditBtn");
 const eventPopup = document.getElementById("eventPopup");
 const eventPopupTitle = document.getElementById("eventPopupTitle");
 const eventPopupMeta = document.getElementById("eventPopupMeta");
 const eventPopupDesc = document.getElementById("eventPopupDesc");
-const eventPopupEdit = document.getElementById("eventPopupEdit");
-const eventPopupClose = document.getElementById("eventPopupClose");
 const eventPopupView = document.getElementById("eventPopupView");
 const eventPopupForm = document.getElementById("eventPopupForm");
 const eventPopupTitleInput = document.getElementById("eventPopupTitleInput");
 const eventPopupCategory = document.getElementById("eventPopupCategory");
+const categoryManagerPopup = document.getElementById("categoryManagerPopup");
+const categoryManagerList = document.getElementById("categoryManagerList");
+const categoryManagerName = document.getElementById("categoryManagerName");
+const categoryManagerColor = document.getElementById("categoryManagerColor");
+const categoryManagerCreate = document.getElementById("categoryManagerCreate");
+const categoryManagerClose = document.getElementById("categoryManagerClose");
 const eventPopupAllDay = document.getElementById("eventPopupAllDay");
 const eventPopupStartDate = document.getElementById("eventPopupStartDate");
 const eventPopupStartTime = document.getElementById("eventPopupStartTime");
@@ -59,6 +43,13 @@ const eventPopupWeekdays = document.getElementById("eventPopupWeekdays");
 const eventPopupDescription = document.getElementById("eventPopupDescription");
 const eventPopupSave = document.getElementById("eventPopupSave");
 const eventPopupCancel = document.getElementById("eventPopupCancel");
+const settingsBtn = document.getElementById("settingsBtn");
+const settingsPopup = document.getElementById("settingsPopup");
+const settingsClose = document.getElementById("settingsClose");
+const userBtn = document.getElementById("userBtn");
+const userDrawer = document.getElementById("userDrawer");
+const userClose = document.getElementById("userClose");
+const userAvatar = document.getElementById("userAvatar");
 
 const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const monthNames = [
@@ -99,7 +90,6 @@ function initialize() {
 
 function populateTimeZones() {
   displayTimeZone.innerHTML = "";
-  eventTimeZone.innerHTML = "";
   eventPopupTimeZone.innerHTML = "";
 
   tzList.forEach((tz) => {
@@ -107,7 +97,6 @@ function populateTimeZones() {
     option.value = tz;
     option.textContent = tz;
     displayTimeZone.appendChild(option.cloneNode(true));
-    eventTimeZone.appendChild(option.cloneNode(true));
     eventPopupTimeZone.appendChild(option);
   });
 }
@@ -125,88 +114,6 @@ function bindEvents() {
     saveSettings();
   });
 
-  categoryForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const name = categoryName.value.trim();
-    if (!name) return;
-    if (!state.user || !supabaseClient) return;
-    await supabaseClient.from("categories").insert({
-      name,
-      color: categoryColor.value,
-      created_by: state.user.id,
-    });
-    categoryName.value = "";
-    await refreshData();
-  });
-
-  eventAllDay.addEventListener("change", () => {
-    toggleTimeInputs();
-  });
-
-  eventRecurrence.addEventListener("change", () => {
-    weekdayPicker.style.display =
-      eventRecurrence.value === "weekly" ? "grid" : "none";
-  });
-
-  eventForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (!eventTitle.value.trim()) return;
-    if (!eventCategory.value) return;
-    if (!state.user || !supabaseClient) return;
-
-    const allDay = eventAllDay.checked;
-    const startDate = eventStartDate.value;
-    const endDate = eventEndDate.value;
-
-    if (!startDate || !endDate) return;
-    if (!allDay && (!eventStartTime.value || !eventEndTime.value)) return;
-
-    const recurrence = {
-      freq: eventRecurrence.value,
-      interval: Math.max(1, Number(eventInterval.value) || 1),
-      byWeekday: getSelectedWeekdays(),
-      until: eventUntil.value,
-    };
-
-    const payload = {
-      title: eventTitle.value.trim(),
-      category_id: eventCategory.value,
-      all_day: allDay,
-      start_date: startDate,
-      end_date: endDate,
-      start_time: allDay ? null : eventStartTime.value,
-      end_time: allDay ? null : eventEndTime.value,
-      time_zone: eventTimeZone.value,
-      recurrence,
-      description: eventDescription.value.trim() || null,
-      updated_by: state.user.id,
-    };
-
-    if (state.editingEventId) {
-      await supabaseClient
-        .from("events")
-        .update(payload)
-        .eq("id", state.editingEventId);
-    } else {
-      await supabaseClient.from("events").insert({
-        ...payload,
-        created_by: state.user.id,
-      });
-    }
-
-    eventForm.reset();
-    eventAllDay.checked = true;
-    toggleTimeInputs();
-    syncFormDefaults();
-    clearEditingState();
-    await refreshData();
-  });
-
-  eventCancelBtn.addEventListener("click", () => {
-    clearEditingState();
-    syncFormDefaults();
-  });
-
   window.addEventListener("resize", () => {
     renderCalendar();
   });
@@ -218,15 +125,52 @@ function bindEvents() {
     }
   });
 
-  clearFilterBtn.addEventListener("click", () => {
-    state.filterCategoryIds = [];
-    renderAll();
-    saveSettings();
-  });
-
-  eventPopupClose.addEventListener("click", closeEventPopup);
   eventPopup.addEventListener("click", (event) => {
     if (event.target === eventPopup) closeEventPopup();
+  });
+  settingsBtn.addEventListener("click", () => {
+    settingsPopup.classList.add("open");
+    settingsPopup.setAttribute("aria-hidden", "false");
+  });
+  settingsClose.addEventListener("click", () => {
+    settingsPopup.classList.remove("open");
+    settingsPopup.setAttribute("aria-hidden", "true");
+  });
+  settingsPopup.addEventListener("click", (event) => {
+    if (event.target === settingsPopup) {
+      settingsPopup.classList.remove("open");
+      settingsPopup.setAttribute("aria-hidden", "true");
+    }
+  });
+  userBtn.addEventListener("click", () => {
+    userDrawer.classList.add("open");
+    userDrawer.setAttribute("aria-hidden", "false");
+  });
+  userClose.addEventListener("click", () => {
+    userDrawer.classList.remove("open");
+    userDrawer.setAttribute("aria-hidden", "true");
+  });
+  userDrawer.addEventListener("click", (event) => {
+    if (event.target === userDrawer) {
+      userDrawer.classList.remove("open");
+      userDrawer.setAttribute("aria-hidden", "true");
+    }
+  });
+  categoryEditBtn.addEventListener("click", () => {
+    openCategoryManager();
+  });
+  categoryManagerClose.addEventListener("click", closeCategoryManager);
+  categoryManagerPopup.addEventListener("click", (event) => {
+    if (event.target === categoryManagerPopup) closeCategoryManager();
+  });
+  categoryManagerCreate.addEventListener("click", async () => {
+    await createCategoryFromManager();
+  });
+  categoryManagerName.addEventListener("keydown", async (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      await createCategoryFromManager();
+    }
   });
   eventPopupCancel.addEventListener("click", () => {
     if (popupMode === "create") {
@@ -234,9 +178,6 @@ function bindEvents() {
     } else {
       togglePopupEdit(false);
     }
-  });
-  eventPopupEdit.addEventListener("click", () => {
-    togglePopupEdit(true);
   });
   eventPopupAllDay.addEventListener("change", () => {
     togglePopupTimeInputs();
@@ -430,55 +371,92 @@ function resolveUserLabel(userId) {
   return profile?.full_name || profile?.email || "Unknown";
 }
 
-function loadEventIntoForm(event) {
-  state.editingEventId = event.id;
-  eventTitle.value = event.title;
-  eventCategory.value = event.category_id || "";
-  eventAllDay.checked = Boolean(event.all_day);
-  eventStartDate.value = event.start_date;
-  eventEndDate.value = event.end_date;
-  eventStartTime.value = event.start_time || "09:00";
-  eventEndTime.value = event.end_time || "10:00";
-  eventTimeZone.value = event.time_zone || state.displayTimeZone;
-  eventDescription.value = event.description || "";
-
-  eventRecurrence.value = event.recurrence?.freq || "none";
-  eventInterval.value = event.recurrence?.interval || 1;
-  eventUntil.value = event.recurrence?.until || "";
-  weekdayPicker
-    .querySelectorAll("input")
-    .forEach((input) => (input.checked = false));
-  if (event.recurrence?.byWeekday?.length) {
-    event.recurrence.byWeekday.forEach((day) => {
-      const checkbox = weekdayPicker.querySelector(`input[value="${day}"]`);
-      if (checkbox) checkbox.checked = true;
-    });
-  }
-
-  weekdayPicker.style.display =
-    eventRecurrence.value === "weekly" ? "grid" : "none";
-  toggleTimeInputs();
-  updateEventFormMode();
-}
-
-function clearEditingState() {
-  state.editingEventId = null;
-  updateEventFormMode();
-}
-
-function updateEventFormMode() {
-  if (state.editingEventId) {
-    eventSubmitBtn.textContent = "Save Changes";
-    eventCancelBtn.disabled = false;
-  } else {
-    eventSubmitBtn.textContent = "Add Event";
-    eventCancelBtn.disabled = true;
-  }
-}
-
 function updateFilterUI() {
-  clearFilterBtn.disabled =
-    state.filterCategoryIds.length === 0 || !state.user;
+  // No-op: show-all removed.
+}
+
+function openCategoryManager() {
+  if (!state.user) return;
+  renderCategoryManagerList();
+  categoryManagerPopup.classList.add("open");
+  categoryManagerPopup.setAttribute("aria-hidden", "false");
+}
+
+function closeCategoryManager() {
+  categoryManagerPopup.classList.remove("open");
+  categoryManagerPopup.setAttribute("aria-hidden", "true");
+}
+
+function renderCategoryManagerList() {
+  categoryManagerList.innerHTML = "";
+  const isDisabled = !state.user;
+  state.categories.forEach((category) => {
+    const row = document.createElement("div");
+    row.className = "popup-category-item";
+
+    const nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.value = category.name;
+    nameInput.disabled = isDisabled;
+    nameInput.addEventListener("change", async () => {
+      if (!state.user || !supabaseClient) return;
+      const name = nameInput.value.trim();
+      if (!name) {
+        nameInput.value = category.name;
+        return;
+      }
+      await supabaseClient
+        .from("categories")
+        .update({ name })
+        .eq("id", category.id);
+      await refreshData();
+      renderCategoryManagerList();
+    });
+
+    const colorInput = document.createElement("input");
+    colorInput.type = "color";
+    colorInput.value = category.color || "#888888";
+    colorInput.disabled = isDisabled;
+    colorInput.addEventListener("change", async () => {
+      if (!state.user || !supabaseClient) return;
+      await supabaseClient
+        .from("categories")
+        .update({ color: colorInput.value })
+        .eq("id", category.id);
+      await refreshData();
+      renderCategoryManagerList();
+    });
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.textContent = "Remove";
+    removeBtn.disabled = isDisabled;
+    removeBtn.addEventListener("click", async () => {
+      if (!state.user || !supabaseClient) return;
+      await supabaseClient.from("categories").delete().eq("id", category.id);
+      await refreshData();
+      renderCategoryManagerList();
+    });
+
+    row.appendChild(nameInput);
+    row.appendChild(colorInput);
+    row.appendChild(removeBtn);
+    categoryManagerList.appendChild(row);
+  });
+}
+
+async function createCategoryFromManager() {
+  if (!state.user || !supabaseClient) return;
+  const name = categoryManagerName.value.trim();
+  if (!name) return;
+  await supabaseClient.from("categories").insert({
+    name,
+    color: categoryManagerColor.value,
+    created_by: state.user.id,
+  });
+  categoryManagerName.value = "";
+  await refreshData();
+  renderCategoryManagerList();
 }
 
 function openEventPopup(eventId) {
@@ -491,11 +469,48 @@ function openEventPopup(eventId) {
   eventPopupTitle.textContent = event.title;
   eventPopupMeta.textContent = `${category?.name || "Uncategorized"} · ${range}`;
   eventPopupDesc.textContent = event.description || "No description";
+  const historyBtn = document.createElement("button");
+  const removeBtn = document.createElement("button");
+  const actions = eventPopupView.querySelector(".event-popup-actions");
+  actions.innerHTML = "";
+
+  const editBtn = document.createElement("button");
+  editBtn.textContent = "Edit";
+  editBtn.disabled = !state.user;
+  editBtn.addEventListener("click", () => {
+    if (!state.user) return;
+    togglePopupEdit(true);
+  });
+
+  historyBtn.textContent = "History";
+  historyBtn.disabled = !state.user;
+  historyBtn.addEventListener("click", async () => {
+    if (!state.user) return;
+    await openHistoryDrawer(event);
+  });
+
+  removeBtn.textContent = "Remove";
+  removeBtn.disabled = !state.user;
+  removeBtn.addEventListener("click", async () => {
+    if (!state.user || !supabaseClient) return;
+    await supabaseClient.from("events").delete().eq("id", event.id);
+    closeEventPopup();
+    await refreshData();
+  });
+
+  const closeBtn = document.createElement("button");
+  closeBtn.textContent = "Close";
+  closeBtn.className = "ghost";
+  closeBtn.addEventListener("click", closeEventPopup);
+
   eventPopup.classList.add("open");
   eventPopup.setAttribute("aria-hidden", "false");
-  eventPopupEdit.disabled = !state.user;
   togglePopupEdit(false);
   fillPopupForm(event);
+  actions.appendChild(editBtn);
+  actions.appendChild(historyBtn);
+  actions.appendChild(removeBtn);
+  actions.appendChild(closeBtn);
 }
 
 function closeEventPopup() {
@@ -509,12 +524,10 @@ function togglePopupEdit(enabled) {
   if (enabled) {
     eventPopupView.classList.add("hidden");
     eventPopupForm.classList.add("active");
-    eventPopupEdit.style.display = "none";
     eventPopupCancel.textContent = "Cancel";
   } else {
     eventPopupView.classList.remove("hidden");
     eventPopupForm.classList.remove("active");
-    eventPopupEdit.style.display = "";
     eventPopupCancel.textContent = "Cancel";
   }
 }
@@ -567,12 +580,12 @@ function openCreatePopup(startParts, endParts) {
   popupMode = "create";
   eventPopup.classList.add("open");
   eventPopup.setAttribute("aria-hidden", "false");
-  eventPopupEdit.style.display = "none";
   eventPopupView.classList.add("hidden");
   eventPopupForm.classList.add("active");
 
   eventPopupTitleInput.value = "";
-  eventPopupCategory.value = eventCategory.value || "";
+  eventPopupCategory.value =
+    state.categories[0]?.id || eventPopupCategory.value || "";
   eventPopupAllDay.checked = true;
   eventPopupStartDate.value = formatDateParts(startParts);
   eventPopupEndDate.value = formatDateParts(endParts);
@@ -626,13 +639,6 @@ function handleCalendarMouseUp() {
   dragSelection = null;
   clearDragHighlight();
 
-  eventStartDate.value = formatDateParts(min);
-  eventEndDate.value = formatDateParts(max);
-  eventAllDay.checked = true;
-  toggleTimeInputs();
-  updateEventFormMode();
-  eventTitle.focus();
-
   openCreatePopup(min, max);
 }
 
@@ -671,6 +677,7 @@ function setSignedOutUI() {
   signInBtn.disabled = false;
   signOutBtn.disabled = true;
   setFormsDisabled(true);
+  userAvatar.textContent = "GU";
 }
 
 function setSignedInUI(user) {
@@ -682,15 +689,28 @@ function setSignedInUI(user) {
   signInBtn.disabled = true;
   signOutBtn.disabled = false;
   setFormsDisabled(false);
+  const label =
+    user.user_metadata?.full_name ||
+    user.user_metadata?.name ||
+    user.email ||
+    "User";
+  const initials = label
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+  userAvatar.textContent = initials || "U";
 }
 
 function setFormsDisabled(disabled) {
-  const forms = [categoryForm, eventForm];
-  forms.forEach((form) => {
-    form.querySelectorAll("input, select, button, textarea").forEach((el) => {
+  eventPopupForm
+    .querySelectorAll("input, select, button, textarea")
+    .forEach((el) => {
+      if (el === eventPopupCancel) return;
       el.disabled = disabled;
     });
-  });
+  categoryEditBtn.disabled = disabled;
 }
 
 async function openHistoryDrawer(event) {
@@ -728,6 +748,7 @@ async function openHistoryDrawer(event) {
   historyBody.innerHTML = "";
   if (!data || data.length === 0) {
     historyBody.textContent = "No changes recorded yet.";
+    adjustHistoryPanelSize();
     return;
   }
 
@@ -757,11 +778,28 @@ async function openHistoryDrawer(event) {
     }
     historyBody.appendChild(row);
   });
+
+  adjustHistoryPanelSize();
 }
 
 function closeHistoryDrawer() {
   historyDrawer.classList.remove("open");
   historyDrawer.setAttribute("aria-hidden", "true");
+}
+
+function adjustHistoryPanelSize() {
+  requestAnimationFrame(() => {
+    const header = historyPanel.querySelector(".history-header");
+    const headerHeight = header ? header.offsetHeight : 0;
+    const bodyHeight = historyBody.scrollHeight;
+    const target = headerHeight + bodyHeight + 36;
+    const max = Math.min(window.innerHeight * 0.85, target);
+    const height = Math.max(180, max);
+    historyPanel.style.height = `${height}px`;
+    historyPanel.style.maxHeight = `${height}px`;
+    const bodyMax = height - headerHeight - 36;
+    historyBody.style.maxHeight = `${Math.max(120, bodyMax)}px`;
+  });
 }
 
 function summarizeSnapshot(snapshot) {
@@ -781,19 +819,6 @@ function syncFormDefaults() {
   yearInput.value = state.year;
   yearTitle.textContent = state.year;
   displayTimeZone.value = state.displayTimeZone;
-  eventTimeZone.value = state.displayTimeZone;
-
-  const today = new Date();
-  const dateString = today.toISOString().slice(0, 10);
-  eventStartDate.value = dateString;
-  eventEndDate.value = dateString;
-  eventStartTime.value = "09:00";
-  eventEndTime.value = "10:00";
-  eventDescription.value = "";
-  weekdayPicker.style.display =
-    eventRecurrence.value === "weekly" ? "grid" : "none";
-  toggleTimeInputs();
-  updateEventFormMode();
 }
 
 function toggleTimeInputs() {
@@ -803,78 +828,14 @@ function toggleTimeInputs() {
 }
 
 function renderAll() {
-  yearTitle.textContent = state.year;
-  renderCategories();
+  yearTitle.textContent = `Annual Calendar - ${state.year}`;
   renderCategoryPills();
   renderEventFormOptions();
-  renderEventsList();
   renderCalendar();
   updateFilterUI();
 }
 
-function renderCategories() {
-  categoryList.innerHTML = "";
-  const isDisabled = !state.user;
-  state.categories.forEach((category) => {
-    const row = document.createElement("div");
-    row.className = "category-item";
-
-    const left = document.createElement("div");
-    left.className = "category-left";
-
-    const swatch = document.createElement("span");
-    swatch.className = "category-swatch";
-    swatch.style.background = category.color;
-
-    const label = document.createElement("span");
-    label.textContent = category.name;
-
-    left.appendChild(swatch);
-    left.appendChild(label);
-
-    const controls = document.createElement("div");
-    controls.className = "category-controls";
-
-    const colorInput = document.createElement("input");
-    colorInput.type = "color";
-    colorInput.value = category.color || "#888888";
-    colorInput.disabled = isDisabled;
-    colorInput.addEventListener("change", async () => {
-      if (!state.user || !supabaseClient) return;
-      await supabaseClient
-        .from("categories")
-        .update({ color: colorInput.value })
-        .eq("id", category.id);
-      await refreshData();
-    });
-
-    const toggle = document.createElement("input");
-    toggle.type = "checkbox";
-    toggle.checked = state.filterCategoryIds.includes(category.id);
-    toggle.disabled = isDisabled;
-    toggle.addEventListener("change", () => {
-      if (toggle.checked) {
-        state.filterCategoryIds = [...state.filterCategoryIds, category.id];
-      } else {
-        state.filterCategoryIds = state.filterCategoryIds.filter(
-          (id) => id !== category.id
-        );
-      }
-      renderAll();
-      saveSettings();
-    });
-
-    controls.appendChild(colorInput);
-    controls.appendChild(toggle);
-
-    row.appendChild(left);
-    row.appendChild(controls);
-    categoryList.appendChild(row);
-  });
-}
-
 function renderEventFormOptions() {
-  eventCategory.innerHTML = "";
   eventPopupCategory.innerHTML = "";
   if (state.categories.length === 0) {
     const option = document.createElement("option");
@@ -882,88 +843,18 @@ function renderEventFormOptions() {
     option.textContent = "Add a category first";
     option.disabled = true;
     option.selected = true;
-    eventCategory.appendChild(option);
-    eventPopupCategory.appendChild(option.cloneNode(true));
+    eventPopupCategory.appendChild(option);
+    renderPopupCategoryManager();
     return;
   }
   state.categories.forEach((category) => {
     const option = document.createElement("option");
     option.value = category.id;
     option.textContent = category.name;
-    eventCategory.appendChild(option);
-    eventPopupCategory.appendChild(option.cloneNode(true));
+    eventPopupCategory.appendChild(option);
   });
 }
 
-function renderEventsList() {
-  eventList.innerHTML = "";
-  const displayTZ = state.displayTimeZone;
-  const isDisabled = !state.user;
-  state.events.forEach((event) => {
-    const category = state.categories.find((c) => c.id === event.category_id);
-    const card = document.createElement("div");
-    card.className = "event-item";
-    card.style.borderLeft = `4px solid ${category?.color || "#999"}`;
-
-    const title = document.createElement("div");
-    title.textContent = event.title;
-
-    const meta = document.createElement("div");
-    meta.className = "event-meta";
-    const range = formatEventRange(event, displayTZ);
-    const createdBy = resolveUserLabel(event.created_by);
-    const createdAt = event.created_at
-      ? new Date(event.created_at).toLocaleDateString()
-      : "";
-    const updatedBy = resolveUserLabel(event.updated_by);
-    const updatedAt = event.updated_at
-      ? new Date(event.updated_at).toLocaleDateString()
-      : "";
-    const createdLabel = createdBy
-      ? `Created by ${createdBy}${createdAt ? ` (${createdAt})` : ""}`
-      : "Created";
-    const editedLabel =
-      updatedBy && (updatedBy !== createdBy || updatedAt !== createdAt)
-        ? ` · Edited by ${updatedBy}${updatedAt ? ` (${updatedAt})` : ""}`
-        : "";
-    meta.textContent = `${category?.name || "Uncategorized"} · ${range} · ${createdLabel}${editedLabel}`;
-
-    const remove = document.createElement("button");
-    remove.textContent = "Remove";
-    remove.style.marginTop = "6px";
-    remove.disabled = isDisabled;
-    remove.addEventListener("click", async () => {
-      if (!state.user || !supabaseClient) return;
-      await supabaseClient.from("events").delete().eq("id", event.id);
-      await refreshData();
-    });
-
-    const historyBtn = document.createElement("button");
-    historyBtn.textContent = "History";
-    historyBtn.disabled = isDisabled;
-    historyBtn.addEventListener("click", async () => {
-      await openHistoryDrawer(event);
-    });
-
-    const editBtn = document.createElement("button");
-    editBtn.textContent = "Edit";
-    editBtn.disabled = isDisabled;
-    editBtn.addEventListener("click", () => {
-      loadEventIntoForm(event);
-    });
-
-    const actions = document.createElement("div");
-    actions.className = "event-actions";
-    actions.appendChild(editBtn);
-    actions.appendChild(historyBtn);
-    actions.appendChild(remove);
-
-    card.appendChild(title);
-    card.appendChild(meta);
-    card.appendChild(actions);
-    eventList.appendChild(card);
-  });
-}
 
 function renderCategoryPills() {
   categoryPills.innerHTML = "";
@@ -973,12 +864,18 @@ function renderCategoryPills() {
     pill.type = "button";
     pill.className = "category-pill";
     pill.textContent = category.name;
-    if (state.filterCategoryIds.includes(category.id)) {
+    const isActive =
+      state.filterCategoryIds.length === 0 ||
+      state.filterCategoryIds.includes(category.id);
+    if (isActive) {
       pill.classList.add("active");
       pill.style.background = category.color;
     }
     pill.style.borderColor = category.color;
     pill.addEventListener("click", () => {
+      if (state.filterCategoryIds.length === 0) {
+        state.filterCategoryIds = state.categories.map((c) => c.id);
+      }
       if (state.filterCategoryIds.includes(category.id)) {
         state.filterCategoryIds = state.filterCategoryIds.filter(
           (id) => id !== category.id
@@ -1004,6 +901,7 @@ function renderCalendar() {
 
   const segmentsByMonth = buildEventSegments(year, displayTZ);
   const todayParts = getDatePartsInTimeZone(new Date(), displayTZ);
+  const todayKey = formatDateParts(todayParts);
 
   for (let month = 0; month < 12; month += 1) {
     const row = document.createElement("div");
@@ -1034,12 +932,17 @@ function renderCalendar() {
         if (parts.weekday === 0 || parts.weekday === 6) {
           cell.classList.add("weekend");
         }
-        if (compareDateParts({ year, month, day: i }, todayParts) < 0) {
+        const currentParts = { year, month, day: i };
+        if (compareDateParts(currentParts, todayParts) < 0) {
           cell.classList.add("past-day");
+        }
+        if (formatDateParts(currentParts) === todayKey) {
+          cell.classList.add("today");
         }
         const number = document.createElement("div");
         number.className = "day-number";
-        number.textContent = i;
+        const weekdayLabel = weekdayNames[parts.weekday].slice(0, 2).toUpperCase();
+        number.innerHTML = `${i} <span class="weekday-mini">${weekdayLabel}</span>`;
         cell.appendChild(number);
       } else {
         cell.classList.add("out-month");
@@ -1353,12 +1256,6 @@ function formatTimeRange(event, startUTC, endUTC, displayTZ) {
   return `${startParts.hour}:${startParts.minute}–${endParts.hour}:${endParts.minute}`;
 }
 
-function getSelectedWeekdays() {
-  return Array.from(weekdayPicker.querySelectorAll("input:checked")).map((el) =>
-    Number(el.value)
-  );
-}
-
 function parseDateOnly(value) {
   const [year, month, day] = value.split("-").map(Number);
   return { year, month: month - 1, day };
@@ -1437,7 +1334,6 @@ function loadSettings() {
     events: [],
     user: null,
     profiles: new Map(),
-    editingEventId: null,
   };
 
   try {
