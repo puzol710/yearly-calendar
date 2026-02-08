@@ -963,6 +963,19 @@ button.danger {
   z-index: 1;
 }
 
+body.compact-dates .day-number {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+body.compact-dates .weekday-mini {
+  margin-left: 0;
+}
+
+body.compact-dates .event-layer {
+  top: 32px;
+}
+
 .event-bar {
   position: absolute;
   height: var(--bar-height);

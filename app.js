@@ -1581,6 +1581,12 @@ function renderCalendar() {
       dayCount
     );
   }
+
+  const firstGrid = monthRows.querySelector(".month-grid");
+  if (firstGrid) {
+    const dayWidth = firstGrid.getBoundingClientRect().width / dayCount;
+    document.body.classList.toggle("compact-dates", dayWidth < 28);
+  }
 }
 
 function renderEventBarsForMonth(container, segments, dayCount) {
