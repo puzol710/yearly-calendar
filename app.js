@@ -1582,11 +1582,16 @@ function renderCalendar() {
     );
   }
 
-  const firstGrid = monthRows.querySelector(".month-grid");
-  if (firstGrid) {
-    const dayWidth = firstGrid.getBoundingClientRect().width / dayCount;
-    document.body.classList.toggle("compact-dates", dayWidth < 28);
-  }
+  requestAnimationFrame(() => {
+    let wrapped = false;
+    monthRows.querySelectorAll(".day-number").forEach((number) => {
+      const mini = number.querySelector(".weekday-mini");
+      if (mini && mini.offsetTop > 0) {
+        wrapped = true;
+      }
+    });
+    document.body.classList.toggle("compact-dates", wrapped);
+  });
 }
 
 function renderEventBarsForMonth(container, segments, dayCount) {
