@@ -52,6 +52,7 @@ const defaultCalendarToggle = document.getElementById("defaultCalendarToggle");
 const saveCalendarSettings = document.getElementById("saveCalendarSettings");
 const sharedWithList = document.getElementById("sharedWithList");
 const viewOnlyBanner = document.getElementById("viewOnlyBanner");
+const deleteCalendarBtn = document.getElementById("deleteCalendarBtn");
 const shareBtn = document.getElementById("shareBtn");
 const sharePopup = document.getElementById("sharePopup");
 const shareEmail = document.getElementById("shareEmail");
@@ -170,6 +171,9 @@ function bindEvents() {
   saveCalendarSettings.addEventListener("click", async () => {
     await saveCalendarSettingsForActive();
   });
+  deleteCalendarBtn.addEventListener("click", async () => {
+    await deleteActiveCalendar();
+  });
   shareBtn.addEventListener("click", () => {
     if (!state.activeCalendarId) return;
     sharePopup.classList.add("open");
@@ -202,8 +206,29 @@ function bindEvents() {
       },
     });
     if (error) {
-      alert("Invite failed. Please check Edge Function setup.");
-      return;
+      const token = crypto.randomUUID().replace(/-/g, "");
+      const { error: insertError } = await supabaseClient
+        .from("calendar_invites")
+        .insert({
+          calendar_id: state.activeCalendarId,
+          email,
+          role,
+          token,
+          invited_by: state.user.id,
+        });
+      if (insertError) {
+        alert("Invite failed. Please check invite policies.");
+        return;
+      }
+      const inviteUrl = `${window.location.origin}?invite=${token}`;
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(inviteUrl);
+        alert("Invite link copied to clipboard.");
+      } else {
+        alert(`Invite link: ${inviteUrl}`);
+      }
+    } else {
+      alert("Invite sent.");
     }
     shareEmail.value = "";
     sharePopup.classList.remove("open");
@@ -261,9 +286,44 @@ function bindEvents() {
   eventPopupAllDay.addEventListener("change", () => {
     togglePopupTimeInputs();
   });
+  eventPopupStartDate.addEventListener("change", () => {
+    updateUntilConstraints();
+  });
+  eventPopupEndDate.addEventListener("change", () => {
+    updateUntilConstraints();
+  });
   eventPopupRecurrence.addEventListener("change", () => {
     eventPopupWeekdays.style.display =
       eventPopupRecurrence.value === "weekly" ? "grid" : "none";
+    if (eventPopupRecurrence.value === "weekly") {
+      const anyChecked = eventPopupWeekdays.querySelector("input:checked");
+      if (!anyChecked && eventPopupStartDate.value) {
+        const startParts = parseDateOnly(eventPopupStartDate.value);
+        const startWeekday = getWeekdayFromDateParts(startParts);
+        const checkbox = eventPopupWeekdays.querySelector(
+          `input[value="${startWeekday}"]`
+        );
+        if (checkbox) checkbox.checked = true;
+      }
+    }
+    updateUntilConstraints();
+  });
+  eventPopupCategory.addEventListener("change", () => {
+    if (eventPopupCategory.value === "__create__") {
+      openCategoryManager({ fromDropdown: true });
+      categoryManagerName.focus();
+      return;
+    }
+    lastCategorySelection = eventPopupCategory.value;
+  });
+  eventPopupCategory.addEventListener("click", () => {
+    if (
+      eventPopupCategory.value === "__create__" &&
+      state.categories.length === 0
+    ) {
+      openCategoryManager({ fromDropdown: true });
+      categoryManagerName.focus();
+    }
   });
   eventPopupForm.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -277,12 +337,19 @@ function bindEvents() {
       return;
     }
 
-    const recurrence = {
-      freq: eventPopupRecurrence.value,
-      interval: Math.max(1, Number(eventPopupInterval.value) || 1),
-      byWeekday: getSelectedPopupWeekdays(),
-      until: eventPopupUntil.value,
-    };
+  const recurrence = {
+    freq: eventPopupRecurrence.value,
+    interval: Math.max(1, Number(eventPopupInterval.value) || 1),
+    byWeekday: getSelectedPopupWeekdays(),
+    until: eventPopupUntil.value,
+  };
+    if (recurrence.until) {
+      const startParts = parseDateOnly(eventPopupStartDate.value);
+      const untilParts = parseDateOnly(recurrence.until);
+      if (compareDateParts(untilParts, startParts) <= 0) {
+        recurrence.until = "";
+      }
+    }
 
     const payload = {
       title: eventPopupTitleInput.value.trim(),
@@ -386,6 +453,8 @@ async function refreshData() {
     renderAll();
     return;
   }
+  state.categories = [];
+  state.events = [];
   await Promise.all([loadCategories(), loadEvents(), loadCalendarMembers()]);
   state.filterCategoryIds = state.filterCategoryIds.filter((id) =>
     state.categories.some((category) => category.id === id)
@@ -492,8 +561,12 @@ function renderCalendarPicker() {
       state.activeCalendarName = calendar.name;
       state.activeCalendarRole = calendar.role;
       state.showCalendarPicker = false;
+      state.categories = [];
+      state.events = [];
+      state.filterCategoryIds = [];
       saveSettings();
       calendarPicker.classList.add("hidden");
+      renderAll();
       await refreshData();
       updatePermissionUI();
     });
@@ -523,8 +596,12 @@ async function createCalendarFromPicker() {
   state.activeCalendarName = data.name;
   state.activeCalendarRole = "owner";
   state.showCalendarPicker = false;
+  state.categories = [];
+  state.events = [];
+  state.filterCategoryIds = [];
   saveSettings();
   calendarPicker.classList.add("hidden");
+  renderAll();
   await refreshData();
   updatePermissionUI();
 }
@@ -697,8 +774,11 @@ function updateFilterUI() {
   // No-op: show-all removed.
 }
 
-function openCategoryManager() {
+function openCategoryManager(options = {}) {
   if (!state.user) return;
+  if (options.fromDropdown) {
+    pendingCategoryCreate = true;
+  }
   renderCategoryManagerList();
   categoryManagerPopup.classList.add("open");
   categoryManagerPopup.setAttribute("aria-hidden", "false");
@@ -707,6 +787,14 @@ function openCategoryManager() {
 function closeCategoryManager() {
   categoryManagerPopup.classList.remove("open");
   categoryManagerPopup.setAttribute("aria-hidden", "true");
+  if (pendingCategoryCreate && eventPopupCategory.value === "__create__") {
+    const fallback =
+      lastCategorySelection ||
+      state.categories.find((category) => category.id !== "__create__")?.id ||
+      "";
+    eventPopupCategory.value = fallback;
+  }
+  pendingCategoryCreate = false;
 }
 
 function renderCategoryManagerList() {
@@ -772,15 +860,25 @@ async function createCategoryFromManager() {
   if (!state.activeCalendarId) return;
   const name = categoryManagerName.value.trim();
   if (!name) return;
-  await supabaseClient.from("categories").insert({
-    name,
-    color: categoryManagerColor.value,
-    calendar_id: state.activeCalendarId,
-    created_by: state.user.id,
-  });
+  const { data, error } = await supabaseClient
+    .from("categories")
+    .insert({
+      name,
+      color: categoryManagerColor.value,
+      calendar_id: state.activeCalendarId,
+      created_by: state.user.id,
+    })
+    .select()
+    .single();
+  if (error) return;
   categoryManagerName.value = "";
   await refreshData();
   renderCategoryManagerList();
+  if (data?.id) {
+    lastCategorySelection = data.id;
+    pendingCategoryCreate = false;
+    eventPopupCategory.value = data.id;
+  }
 }
 
 function openEventPopup(eventId) {
@@ -860,6 +958,9 @@ function togglePopupEdit(enabled) {
 function fillPopupForm(event) {
   eventPopupTitleInput.value = event.title;
   eventPopupCategory.value = event.category_id || "";
+  if (eventPopupCategory.value) {
+    lastCategorySelection = eventPopupCategory.value;
+  }
   eventPopupAllDay.checked = Boolean(event.all_day);
   eventPopupStartDate.value = event.start_date;
   eventPopupEndDate.value = event.end_date;
@@ -871,6 +972,7 @@ function fillPopupForm(event) {
   eventPopupRecurrence.value = event.recurrence?.freq || "none";
   eventPopupInterval.value = event.recurrence?.interval || 1;
   eventPopupUntil.value = event.recurrence?.until || "";
+  updateUntilConstraints();
   eventPopupWeekdays
     .querySelectorAll("input")
     .forEach((input) => (input.checked = false));
@@ -911,6 +1013,9 @@ function openCreatePopup(startParts, endParts) {
   eventPopupTitleInput.value = "";
   eventPopupCategory.value =
     state.categories[0]?.id || eventPopupCategory.value || "";
+  if (eventPopupCategory.value) {
+    lastCategorySelection = eventPopupCategory.value;
+  }
   eventPopupAllDay.checked = true;
   eventPopupStartDate.value = formatDateParts(startParts);
   eventPopupEndDate.value = formatDateParts(endParts);
@@ -920,6 +1025,7 @@ function openCreatePopup(startParts, endParts) {
   eventPopupRecurrence.value = "none";
   eventPopupInterval.value = 1;
   eventPopupUntil.value = "";
+  updateUntilConstraints();
   eventPopupWeekdays
     .querySelectorAll("input")
     .forEach((input) => (input.checked = false));
@@ -931,6 +1037,8 @@ function openCreatePopup(startParts, endParts) {
 let dragSelection = null;
 let popupEventId = null;
 let popupMode = "view";
+let pendingCategoryCreate = false;
+let lastCategorySelection = "";
 
 function handleCalendarMouseDown(event) {
   if (isReadOnly()) return;
@@ -1061,6 +1169,8 @@ function updateSettingsUI() {
     state.activeCalendarId === state.defaultCalendarId;
   defaultCalendarToggle.disabled = !state.user || !state.activeCalendarId;
   saveCalendarSettings.disabled = !state.user || !state.activeCalendarId;
+  deleteCalendarBtn.disabled =
+    !state.user || state.activeCalendarRole !== "owner";
   renderSharedWithList();
 }
 
@@ -1091,6 +1201,25 @@ async function saveCalendarSettingsForActive() {
 
   await loadCalendars();
   renderAll();
+}
+
+async function deleteActiveCalendar() {
+  if (!state.user || !supabaseClient || !state.activeCalendarId) return;
+  if (state.activeCalendarRole !== "owner") return;
+  const name = state.activeCalendarName || "this calendar";
+  const ok = window.confirm(`Delete ${name}? This cannot be undone.`);
+  if (!ok) return;
+  await supabaseClient.from("calendars").delete().eq("id", state.activeCalendarId);
+  state.activeCalendarId = null;
+  state.activeCalendarName = "";
+  state.activeCalendarRole = "";
+  state.showCalendarPicker = true;
+  saveSettings();
+  settingsPopup.classList.remove("open");
+  settingsPopup.setAttribute("aria-hidden", "true");
+  await loadCalendars();
+  await refreshData();
+  updatePermissionUI();
 }
 
 function renderSharedWithList() {
@@ -1292,6 +1421,19 @@ function toggleTimeInputs() {
   eventEndTime.disabled = disabled;
 }
 
+function updateUntilConstraints() {
+  if (!eventPopupStartDate.value) return;
+  const minDate = addDaysToDateString(eventPopupStartDate.value, 1);
+  eventPopupUntil.min = minDate;
+  if (eventPopupUntil.value) {
+    const startParts = parseDateOnly(eventPopupStartDate.value);
+    const untilParts = parseDateOnly(eventPopupUntil.value);
+    if (compareDateParts(untilParts, startParts) <= 0) {
+      eventPopupUntil.value = "";
+    }
+  }
+}
+
 function renderAll() {
   const baseTitle = state.activeCalendarName || "Annual Calendar";
   yearTitle.textContent = `${baseTitle} - ${state.year}`;
@@ -1305,13 +1447,16 @@ function renderAll() {
 function renderEventFormOptions() {
   eventPopupCategory.innerHTML = "";
   if (state.categories.length === 0) {
+    const placeholder = document.createElement("option");
+    placeholder.value = "";
+    placeholder.textContent = "Select a category";
+    placeholder.disabled = true;
+    placeholder.selected = true;
+    eventPopupCategory.appendChild(placeholder);
     const option = document.createElement("option");
-    option.value = "";
-    option.textContent = "Add a category first";
-    option.disabled = true;
-    option.selected = true;
+    option.value = "__create__";
+    option.textContent = "Create a category...";
     eventPopupCategory.appendChild(option);
-    renderPopupCategoryManager();
     return;
   }
   state.categories.forEach((category) => {
@@ -1320,6 +1465,10 @@ function renderEventFormOptions() {
     option.textContent = category.name;
     eventPopupCategory.appendChild(option);
   });
+  const createOption = document.createElement("option");
+  createOption.value = "__create__";
+  createOption.textContent = "Create a category...";
+  eventPopupCategory.appendChild(createOption);
 }
 
 
@@ -1631,10 +1780,11 @@ function buildOccurrencesForYear(event, year, displayTZ) {
     const byWeekday = recurrence.byWeekday?.length
       ? recurrence.byWeekday
       : [getWeekdayFromDateParts(startLocal)];
+    const normalizedWeekdays = byWeekday.map((day) => (day + 6) % 7);
     let weekStart = startOfWeek(startLocal);
     while (true) {
       if (untilDate && compareDateParts(weekStart, untilDate) > 0) break;
-      byWeekday.forEach((weekday) => {
+      normalizedWeekdays.forEach((weekday) => {
         const candidate = addDaysToDateParts(weekStart, weekday);
         if (compareDateParts(candidate, startLocal) < 0) return;
         if (untilDate && compareDateParts(candidate, untilDate) > 0) return;

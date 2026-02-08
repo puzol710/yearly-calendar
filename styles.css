@@ -331,6 +331,26 @@ body {
   font-size: 12px;
 }
 
+#openCalendarPicker {
+  border-radius: 999px;
+  border: 1px solid var(--grid-line);
+  background: #fff;
+  color: var(--ink);
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+#settingsClose.ghost {
+  border-radius: 999px;
+  border: 1px solid var(--grid-line);
+  background: #fff;
+  color: var(--ink);
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
 .shared-with-list {
   display: grid;
   gap: 8px;
@@ -374,6 +394,20 @@ body {
   border: 1px solid var(--grid-line);
   background: #fff;
   padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.panel-subtitle.danger {
+  color: #8a3b3b;
+}
+
+button.danger {
+  border-radius: 999px;
+  border: 1px solid rgba(168, 84, 84, 0.4);
+  background: rgba(200, 130, 130, 0.22);
+  color: #6a2d2d;
+  padding: 8px 12px;
   font-size: 12px;
   cursor: pointer;
 }
