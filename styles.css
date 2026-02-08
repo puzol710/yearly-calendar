@@ -935,6 +935,11 @@ button.danger {
   background: rgba(255, 255, 255, 0.7);
   padding: 0 2px;
   border-radius: 3px;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  line-height: 1.05;
+  min-height: 22px;
 }
 
 .weekday-mini {
@@ -951,28 +956,11 @@ button.danger {
 .event-layer {
   position: absolute;
   left: 0;
-  top: 18px;
+  top: 26px;
   right: 0;
   bottom: 4px;
   pointer-events: none;
   z-index: 1;
-}
-
-@media (max-width: 1200px) {
-  .day-number {
-    display: inline-flex;
-    flex-direction: column;
-    align-items: flex-start;
-    line-height: 1.05;
-  }
-
-  .weekday-mini {
-    margin-left: 0;
-  }
-
-  .event-layer {
-    top: 30px;
-  }
 }
 
 .event-bar {
