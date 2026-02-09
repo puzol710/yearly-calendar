@@ -1,4 +1,5 @@
 const SETTINGS_KEY = "annualCalendarSettings.v1";
+const INVITE_TOKEN_KEY = "annualCalendarInviteToken";
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 const yearInput = document.getElementById("yearInput");
@@ -101,6 +102,7 @@ const state = loadSettings();
 initialize();
 
 function initialize() {
+  stashInviteFromUrl();
   populateTimeZones();
   bindEvents();
   syncFormDefaults();
@@ -432,6 +434,7 @@ async function handleSession(session) {
     state.categories = [];
     state.events = [];
     state.profiles = new Map();
+    stashInviteFromUrl();
     setSignedOutUI();
     renderAll();
     return;
@@ -608,8 +611,12 @@ async function createCalendarFromPicker() {
 
 async function handleInviteFromUrl() {
   const params = new URLSearchParams(window.location.search);
-  const token = params.get("invite");
-  if (!token || !state.user) return;
+  const token = params.get("invite") || localStorage.getItem(INVITE_TOKEN_KEY);
+  if (!token) return;
+  if (!state.user) {
+    localStorage.setItem(INVITE_TOKEN_KEY, token);
+    return;
+  }
 
   const { data, error } = await supabaseClient
     .from("calendar_invites")
@@ -631,8 +638,16 @@ async function handleInviteFromUrl() {
     .update({ accepted_at: new Date().toISOString() })
     .eq("id", data.id);
 
+  localStorage.removeItem(INVITE_TOKEN_KEY);
   params.delete("invite");
   window.history.replaceState({}, "", window.location.pathname);
+}
+
+function stashInviteFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get("invite");
+  if (!token) return;
+  localStorage.setItem(INVITE_TOKEN_KEY, token);
 }
 
 function isReadOnly() {
