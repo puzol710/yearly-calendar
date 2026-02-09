@@ -606,19 +606,34 @@ async function handleInviteFromUrl() {
     .eq("token", token)
     .single();
 
-  if (error || !data) return;
+  if (error || !data) {
+    console.warn("Invite lookup failed", error);
+    alert("Invite link is invalid or expired.");
+    localStorage.removeItem(INVITE_TOKEN_KEY);
+    params.delete("invite");
+    window.history.replaceState({}, "", window.location.pathname);
+    return;
+  }
   if (data.accepted_at) return;
-  if (data.email && data.email !== state.user.email) return;
-
-  await supabaseClient.from("calendar_members").insert({
-    calendar_id: data.calendar_id,
-    user_id: state.user.id,
-    role: data.role,
-  });
-  await supabaseClient
+  const { error: insertError } = await supabaseClient
+    .from("calendar_members")
+    .insert({
+      calendar_id: data.calendar_id,
+      user_id: state.user.id,
+      role: data.role,
+    });
+  if (insertError) {
+    console.warn("Invite accept failed", insertError);
+    alert("Unable to accept invite. Please contact the calendar owner.");
+    return;
+  }
+  const { error: updateError } = await supabaseClient
     .from("calendar_invites")
     .update({ accepted_at: new Date().toISOString() })
     .eq("id", data.id);
+  if (updateError) {
+    console.warn("Invite accept update failed", updateError);
+  }
 
   localStorage.removeItem(INVITE_TOKEN_KEY);
   params.delete("invite");
