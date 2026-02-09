@@ -630,7 +630,11 @@ async function handleInviteFromUrl() {
   if (insertError) {
     const code = insertError.code || insertError.error || "";
     if (String(code) === "23505") {
+      localStorage.removeItem(INVITE_TOKEN_KEY);
+      params.delete("invite");
+      window.history.replaceState({}, "", window.location.pathname);
       alert("You already have access to this calendar.");
+      return;
     } else {
       console.warn("Invite accept failed", insertError);
       alert("Unable to accept invite. Please contact the calendar owner.");
