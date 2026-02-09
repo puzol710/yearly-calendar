@@ -614,7 +614,12 @@ async function handleInviteFromUrl() {
     window.history.replaceState({}, "", window.location.pathname);
     return;
   }
-  if (data.accepted_at) return;
+  if (data.accepted_at) {
+    localStorage.removeItem(INVITE_TOKEN_KEY);
+    params.delete("invite");
+    window.history.replaceState({}, "", window.location.pathname);
+    return;
+  }
   const { error: insertError } = await supabaseClient
     .from("calendar_members")
     .insert({
@@ -691,6 +696,9 @@ async function loadProfiles() {
   state.categories.forEach((category) => {
     if (category.created_by) ids.add(category.created_by);
   });
+  state.calendarMembers.forEach((member) => {
+    if (member.user_id) ids.add(member.user_id);
+  });
   if (state.user?.id) ids.add(state.user.id);
 
   if (ids.size === 0) {
@@ -703,7 +711,7 @@ async function loadProfiles() {
     .select("id, full_name, email")
     .in("id", Array.from(ids));
 
-  const map = new Map();
+  const map = new Map(state.profiles);
   (data || []).forEach((profile) => {
     map.set(profile.id, profile);
   });
