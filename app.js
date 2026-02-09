@@ -629,7 +629,9 @@ async function handleInviteFromUrl() {
     });
   if (insertError) {
     const code = insertError.code || insertError.error || "";
-    if (String(code) !== "23505") {
+    if (String(code) === "23505") {
+      alert("You already have access to this calendar.");
+    } else {
       console.warn("Invite accept failed", insertError);
       alert("Unable to accept invite. Please contact the calendar owner.");
       return;
