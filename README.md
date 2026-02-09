@@ -62,6 +62,20 @@ python3 -m http.server 5173
 ```
 Open: `http://localhost:5173`
 
+## Push to Production
+```bash
+cd "/Users/jonathanchen/Documents/New project/annual-calendar"
+git add -A
+git commit -m "Update calendar"
+git push origin main
+```
+
+If you get a “fetch first” error:
+```bash
+git pull --rebase origin main
+git push origin main
+```
+
 ## Environment Configuration
 Supabase is configured in `index.html`:
 ```html
