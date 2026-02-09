@@ -628,9 +628,12 @@ async function handleInviteFromUrl() {
       role: data.role,
     });
   if (insertError) {
-    console.warn("Invite accept failed", insertError);
-    alert("Unable to accept invite. Please contact the calendar owner.");
-    return;
+    const code = insertError.code || insertError.error || "";
+    if (String(code) !== "23505") {
+      console.warn("Invite accept failed", insertError);
+      alert("Unable to accept invite. Please contact the calendar owner.");
+      return;
+    }
   }
   const { error: updateError } = await supabaseClient
     .from("calendar_invites")
