@@ -620,6 +620,24 @@ async function handleInviteFromUrl() {
     window.history.replaceState({}, "", window.location.pathname);
     return;
   }
+  const { data: existingMember, error: memberLookupError } =
+    await supabaseClient
+      .from("calendar_members")
+      .select("id")
+      .eq("calendar_id", data.calendar_id)
+      .eq("user_id", state.user.id)
+      .maybeSingle();
+  if (memberLookupError) {
+    console.warn("Invite accept lookup failed", memberLookupError);
+  }
+  if (existingMember?.id) {
+    localStorage.removeItem(INVITE_TOKEN_KEY);
+    params.delete("invite");
+    window.history.replaceState({}, "", window.location.pathname);
+    alert("You already have access to this calendar.");
+    return;
+  }
+
   const { error: insertError } = await supabaseClient
     .from("calendar_members")
     .insert({
@@ -628,18 +646,9 @@ async function handleInviteFromUrl() {
       role: data.role,
     });
   if (insertError) {
-    const code = insertError.code || insertError.error || "";
-    if (String(code) === "23505") {
-      localStorage.removeItem(INVITE_TOKEN_KEY);
-      params.delete("invite");
-      window.history.replaceState({}, "", window.location.pathname);
-      alert("You already have access to this calendar.");
-      return;
-    } else {
-      console.warn("Invite accept failed", insertError);
-      alert("Unable to accept invite. Please contact the calendar owner.");
-      return;
-    }
+    console.warn("Invite accept failed", insertError);
+    alert("Unable to accept invite. Please contact the calendar owner.");
+    return;
   }
   const { error: updateError } = await supabaseClient
     .from("calendar_invites")
