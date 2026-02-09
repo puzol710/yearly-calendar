@@ -9,7 +9,7 @@
   --day-col-width: 22px;
   --month-label-width: 64px;
   --row-height: 58px;
-  --bar-height: 14px;
+  --bar-height: 16px;
   --bar-gap: 2px;
   --font-head: "Libre Baskerville", "Times New Roman", serif;
   --font-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
@@ -980,8 +980,9 @@ body.compact-dates .event-layer {
   position: absolute;
   height: var(--bar-height);
   border-radius: 999px;
-  padding: 2px 8px;
+  padding: 2px 8px 4px;
   font-size: 11px;
+  line-height: 1.35;
   color: #1f1a16;
   box-shadow: 0 4px 8px rgba(30, 24, 20, 0.12);
   overflow: hidden;
@@ -989,6 +990,8 @@ body.compact-dates .event-layer {
   text-overflow: ellipsis;
   pointer-events: auto;
   cursor: pointer;
+  display: flex;
+  align-items: flex-start;
 }
 
 .event-bar.timed {
