@@ -54,6 +54,7 @@ const saveCalendarSettings = document.getElementById("saveCalendarSettings");
 const sharedWithList = document.getElementById("sharedWithList");
 const viewOnlyBanner = document.getElementById("viewOnlyBanner");
 const deleteCalendarBtn = document.getElementById("deleteCalendarBtn");
+const addEventBtn = document.getElementById("addEventBtn");
 const shareBtn = document.getElementById("shareBtn");
 const sharePopup = document.getElementById("sharePopup");
 const shareRole = document.getElementById("shareRole");
@@ -149,8 +150,13 @@ function bindEvents() {
     saveSettings();
   });
 
+  let resizeRaf = null;
   window.addEventListener("resize", () => {
-    renderCalendar();
+    if (resizeRaf) return;
+    resizeRaf = requestAnimationFrame(() => {
+      renderCalendar();
+      resizeRaf = null;
+    });
   });
 
   historyClose.addEventListener("click", closeHistoryDrawer);
@@ -167,6 +173,14 @@ function bindEvents() {
     updateSettingsUI();
     settingsPopup.classList.add("open");
     settingsPopup.setAttribute("aria-hidden", "false");
+  });
+  addEventBtn.addEventListener("click", () => {
+    if (isReadOnly()) return;
+    const today = getDatePartsInTimeZone(new Date(), state.displayTimeZone);
+    openCreatePopup(
+      { year: today.year, month: today.month, day: today.day },
+      { year: today.year, month: today.month, day: today.day }
+    );
   });
   settingsClose.addEventListener("click", () => {
     settingsPopup.classList.remove("open");
@@ -667,9 +681,17 @@ async function handleInviteFromUrl() {
       role: data.role,
     });
   if (insertError) {
-    console.warn("Invite accept failed", insertError);
-    alert("Unable to accept invite. Please contact the calendar owner.");
-    return;
+    const { data: fallbackMember } = await supabaseClient
+      .from("calendar_members")
+      .select("id")
+      .eq("calendar_id", data.calendar_id)
+      .eq("user_id", state.user.id)
+      .maybeSingle();
+    if (!fallbackMember?.id) {
+      console.warn("Invite accept failed", insertError);
+      alert("Unable to accept invite. Please contact the calendar owner.");
+      return;
+    }
   }
   const { error: updateError } = await supabaseClient
     .from("calendar_invites")
@@ -1698,28 +1720,40 @@ function renderCalendar() {
     row.appendChild(grid);
     monthRows.appendChild(row);
 
-    renderEventBarsForMonth(
-      eventLayer,
-      segmentsByMonth.get(month) || [],
-      dayCount
-    );
+    renderEventBarsForMonth(eventLayer, segmentsByMonth.get(month) || []);
   }
 
   requestAnimationFrame(() => {
-    let wrapped = false;
-    monthRows.querySelectorAll(".day-number").forEach((number) => {
-      const mini = number.querySelector(".weekday-mini");
-      if (mini && mini.offsetTop > 0) {
-        wrapped = true;
-      }
-    });
-    document.body.classList.toggle("compact-dates", wrapped);
+    const sampleCell = monthRows.querySelector(".day-cell:not(.out-month)");
+    const numberEl = monthRows.querySelector(".day-number");
+    const miniEl = monthRows.querySelector(".weekday-mini");
+    if (!sampleCell || !numberEl || !miniEl) return;
+
+    const cellWidth = sampleCell.getBoundingClientRect().width;
+    const numberStyle = getComputedStyle(numberEl);
+    const miniStyle = getComputedStyle(miniEl);
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const numberFont = `${numberStyle.fontWeight} ${numberStyle.fontSize} ${numberStyle.fontFamily}`;
+    const miniFont = `${miniStyle.fontWeight} ${miniStyle.fontSize} ${miniStyle.fontFamily}`;
+    ctx.font = numberFont;
+    const numberWidth = ctx.measureText("31").width;
+    ctx.font = miniFont;
+    const miniWidth = ctx.measureText("MO").width;
+    const totalWidth = numberWidth + 4 + miniWidth + 4;
+    const shouldHide = totalWidth > cellWidth - 2;
+
+    document.body.classList.toggle("hide-weekday", shouldHide);
   });
 }
 
-function renderEventBarsForMonth(container, segments, dayCount) {
-  const gridWidth = container.parentElement.getBoundingClientRect().width;
-  const dayWidth = gridWidth / dayCount;
+function renderEventBarsForMonth(container, segments) {
+  const dayCount =
+    Number(
+      getComputedStyle(document.documentElement).getPropertyValue("--day-count")
+    ) || 31;
   const barHeight = parseFloat(
     getComputedStyle(document.documentElement).getPropertyValue("--bar-height")
   );
@@ -1747,11 +1781,9 @@ function renderEventBarsForMonth(container, segments, dayCount) {
     if (!segment.allDay) {
       bar.classList.add("timed");
     }
-    bar.style.left = `${segment.startIndex * dayWidth}px`;
-    bar.style.width = `${Math.max(
-      1,
-      segment.endIndex - segment.startIndex + 1
-    ) * dayWidth - 4}px`;
+    const span = Math.max(1, segment.endIndex - segment.startIndex + 1);
+    bar.style.left = `calc(${segment.startIndex} * (100% / ${dayCount}) + 1px)`;
+    bar.style.width = `calc(${span} * (100% / ${dayCount}) - 2px)`;
     bar.style.top = `${trackIndex * (barHeight + barGap)}px`;
     bar.style.background = segment.color;
     bar.textContent = segment.title;
@@ -1772,7 +1804,14 @@ function renderEventBarsForMonth(container, segments, dayCount) {
   });
 
   const maxTracks = Math.max(1, tracks.length);
-  const rowHeight = 34 + maxTracks * (barHeight + barGap);
+  const layerTop = parseFloat(getComputedStyle(container).top) || 22;
+  const tracksHeight =
+    maxTracks * barHeight + Math.max(0, maxTracks - 1) * barGap;
+  const baseRowHeight = 26 + 2 * (barHeight + barGap);
+  const rowHeight =
+    maxTracks <= 2
+      ? baseRowHeight
+      : Math.ceil(layerTop + tracksHeight + 1);
   container.parentElement.style.setProperty(
     "--row-height",
     `${rowHeight}px`
@@ -1785,7 +1824,6 @@ function buildEventSegments(year, displayTZ) {
     state.filterCategoryIds.length > 0
       ? new Set(state.filterCategoryIds)
       : new Set(state.categories.map((c) => c.id));
-  const dayCount = 31;
 
   const occurrences = state.events
     .filter((event) => visibleCategories.has(event.category_id))
@@ -1836,15 +1874,15 @@ function buildEventSegments(year, displayTZ) {
       const segmentStartIndex = segmentStart - 1;
       const segmentEndIndex = segmentEnd - 1;
 
-    const segment = {
-      title: event.title,
-      color: category?.color || "#999",
-      allDay: event.all_day,
-      timeLabel,
-      eventId: event.id,
-      startIndex: segmentStartIndex,
-      endIndex: segmentEndIndex,
-    };
+      const segment = {
+        title: event.title,
+        color: category?.color || "#999",
+        allDay: event.all_day,
+        timeLabel,
+        eventId: event.id,
+        startIndex: segmentStartIndex,
+        endIndex: segmentEndIndex,
+      };
 
       if (!segmentsByMonth.has(month)) {
         segmentsByMonth.set(month, []);

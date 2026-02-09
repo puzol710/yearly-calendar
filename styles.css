@@ -861,16 +861,16 @@ button.danger {
 .months {
   display: grid;
   grid-auto-rows: minmax(var(--row-height), auto);
-  gap: 8px;
+  gap: 0;
   width: 100%;
 }
 
 .month-row {
   display: flex;
   align-items: stretch;
-  border-bottom: 1px dashed rgba(85, 76, 72, 0.2);
   position: relative;
-  padding: 3px 0 4px;
+  padding: 0;
+  margin: 0;
   width: 100%;
   min-width: 0;
 }
@@ -899,6 +899,9 @@ button.danger {
   width: 100%;
   min-width: 0;
   flex: 1 1 auto;
+  padding-bottom: 0;
+  border-bottom: none;
+  border-bottom: 1px dashed rgba(85, 76, 72, 0.2);
 }
 
 .day-cell {
@@ -906,6 +909,7 @@ button.danger {
   height: var(--row-height);
   position: relative;
   min-width: 0;
+  box-sizing: border-box;
 }
 
 .day-cell.weekend {
@@ -936,10 +940,9 @@ button.danger {
   padding: 0 2px;
   border-radius: 3px;
   display: inline-flex;
-  flex-wrap: wrap;
-  align-content: flex-start;
-  line-height: 1.05;
-  min-height: 22px;
+  align-items: center;
+  line-height: 1;
+  height: 16px;
 }
 
 .weekday-mini {
@@ -956,24 +959,15 @@ button.danger {
 .event-layer {
   position: absolute;
   left: 0;
-  top: 26px;
+  top: 22px;
   right: 0;
-  bottom: 4px;
+  bottom: 0;
   pointer-events: none;
   z-index: 1;
 }
 
-body.compact-dates .day-number {
-  flex-direction: column;
-  align-items: flex-start;
-}
-
-body.compact-dates .weekday-mini {
-  margin-left: 0;
-}
-
-body.compact-dates .event-layer {
-  top: 32px;
+body.hide-weekday .weekday-mini {
+  display: none;
 }
 
 .event-bar {
