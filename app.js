@@ -86,6 +86,21 @@ const monthNames = [
   "December",
 ];
 
+const CATEGORY_COLORS = [
+  "#c97b84",
+  "#6d8fb4",
+  "#6fa78a",
+  "#b58bc1",
+  "#d2a35c",
+  "#d37b5b",
+  "#7f9dbd",
+  "#9b9b9b",
+  "#b7836f",
+  "#8f7cc5",
+  "#8aa87c",
+  "#c09d7b",
+];
+
 const tzList =
   Intl.supportedValuesOf && Intl.supportedValuesOf("timeZone")
     ? Intl.supportedValuesOf("timeZone")
@@ -269,6 +284,12 @@ function bindEvents() {
   });
   eventPopupAllDay.addEventListener("change", () => {
     togglePopupTimeInputs();
+  });
+  eventPopupStartTime.addEventListener("change", () => {
+    syncEndTimeFromStart();
+  });
+  eventPopupEndTime.addEventListener("change", () => {
+    enforceEndAfterStart();
   });
   eventPopupStartDate.addEventListener("change", () => {
     updateUntilConstraints();
@@ -818,6 +839,7 @@ function openCategoryManager(options = {}) {
     pendingCategoryCreate = true;
   }
   renderCategoryManagerList();
+  categoryManagerColor.value = pickNextCategoryColor();
   categoryManagerPopup.classList.add("open");
   categoryManagerPopup.setAttribute("aria-hidden", "false");
 }
@@ -893,6 +915,21 @@ function renderCategoryManagerList() {
   });
 }
 
+function pickNextCategoryColor() {
+  const used = new Set(
+    [
+      ...state.categories.map((category) => category.color),
+      categoryManagerColor?.value,
+    ]
+      .map((color) => (color || "").toLowerCase())
+      .filter(Boolean)
+  );
+  const next =
+    CATEGORY_COLORS.find((color) => !used.has(color.toLowerCase())) ||
+    CATEGORY_COLORS[0];
+  return next;
+}
+
 async function createCategoryFromManager() {
   if (!state.user || !supabaseClient || isReadOnly()) return;
   if (!state.activeCalendarId) return;
@@ -910,6 +947,7 @@ async function createCategoryFromManager() {
     .single();
   if (error) return;
   categoryManagerName.value = "";
+  categoryManagerColor.value = pickNextCategoryColor();
   await refreshData();
   renderCategoryManagerList();
   if (data?.id) {
@@ -1031,6 +1069,46 @@ function togglePopupTimeInputs() {
   const disabled = eventPopupAllDay.checked;
   eventPopupStartTime.disabled = disabled;
   eventPopupEndTime.disabled = disabled;
+}
+
+function syncEndTimeFromStart() {
+  if (eventPopupAllDay.checked) return;
+  if (!eventPopupStartTime.value) return;
+  const startParts = parseTimeParts(eventPopupStartTime.value);
+  const endParts = parseTimeParts(eventPopupEndTime.value || "00:00");
+  const startMinutes = startParts.hours * 60 + startParts.minutes;
+  const endMinutes = endParts.hours * 60 + endParts.minutes;
+  const minEnd = (startMinutes + 60) % (24 * 60);
+  if (endMinutes <= startMinutes) {
+    eventPopupEndTime.value = formatTime(minEnd);
+  }
+}
+
+function enforceEndAfterStart() {
+  if (eventPopupAllDay.checked) return;
+  if (!eventPopupStartTime.value || !eventPopupEndTime.value) return;
+  const startParts = parseTimeParts(eventPopupStartTime.value);
+  const endParts = parseTimeParts(eventPopupEndTime.value);
+  const startMinutes = startParts.hours * 60 + startParts.minutes;
+  const endMinutes = endParts.hours * 60 + endParts.minutes;
+  if (endMinutes <= startMinutes) {
+    eventPopupEndTime.value = formatTime((startMinutes + 60) % (24 * 60));
+  }
+}
+
+function parseTimeParts(value) {
+  const [hours, minutes] = value.split(":").map((part) => Number(part));
+  return {
+    hours: Number.isFinite(hours) ? hours : 0,
+    minutes: Number.isFinite(minutes) ? minutes : 0,
+  };
+}
+
+function formatTime(totalMinutes) {
+  const minutes = ((totalMinutes % (24 * 60)) + (24 * 60)) % (24 * 60);
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
 }
 
 function getSelectedPopupWeekdays() {
