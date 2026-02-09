@@ -56,7 +56,6 @@ const viewOnlyBanner = document.getElementById("viewOnlyBanner");
 const deleteCalendarBtn = document.getElementById("deleteCalendarBtn");
 const shareBtn = document.getElementById("shareBtn");
 const sharePopup = document.getElementById("sharePopup");
-const shareEmail = document.getElementById("shareEmail");
 const shareRole = document.getElementById("shareRole");
 const shareSend = document.getElementById("shareSend");
 const shareClose = document.getElementById("shareClose");
@@ -194,45 +193,28 @@ function bindEvents() {
   shareSend.addEventListener("click", async () => {
     if (!state.user || !supabaseClient) return;
     if (!state.activeCalendarId) return;
-    if (state.activeCalendarRole !== "owner") return;
-    const email = shareEmail.value.trim();
-    if (!email) return;
+    if (!canShareCalendar()) return;
     const role = shareRole.value;
-    const { error } = await supabaseClient.functions.invoke("send-invite", {
-      body: {
-        email,
+    const token = crypto.randomUUID().replace(/-/g, "");
+    const { error: insertError } = await supabaseClient
+      .from("calendar_invites")
+      .insert({
         calendar_id: state.activeCalendarId,
         role,
-        inviter_id: state.user.id,
-        app_url: window.location.origin,
-      },
-    });
-    if (error) {
-      const token = crypto.randomUUID().replace(/-/g, "");
-      const { error: insertError } = await supabaseClient
-        .from("calendar_invites")
-        .insert({
-          calendar_id: state.activeCalendarId,
-          email,
-          role,
-          token,
-          invited_by: state.user.id,
-        });
-      if (insertError) {
-        alert("Invite failed. Please check invite policies.");
-        return;
-      }
-      const inviteUrl = `${window.location.origin}?invite=${token}`;
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(inviteUrl);
-        alert("Invite link copied to clipboard.");
-      } else {
-        alert(`Invite link: ${inviteUrl}`);
-      }
-    } else {
-      alert("Invite sent.");
+        token,
+        invited_by: state.user.id,
+      });
+    if (insertError) {
+      alert("Invite failed. Please check invite policies.");
+      return;
     }
-    shareEmail.value = "";
+    const inviteUrl = `${window.location.origin}?invite=${token}`;
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(inviteUrl);
+      alert("Invite link copied to clipboard.");
+    } else {
+      alert(`Invite link: ${inviteUrl}`);
+    }
     sharePopup.classList.remove("open");
     sharePopup.setAttribute("aria-hidden", "true");
   });
@@ -1165,12 +1147,19 @@ function setFormsDisabled(disabled) {
 function updatePermissionUI() {
   const readOnly = isReadOnly();
   setFormsDisabled(readOnly);
-  shareBtn.disabled = !state.user || state.activeCalendarRole !== "owner";
+  shareBtn.disabled = !state.user || !canShareCalendar();
   viewOnlyBanner.classList.toggle(
     "hidden",
     !readOnly || !state.activeCalendarId
   );
   updateSettingsUI();
+}
+
+function canShareCalendar() {
+  return (
+    state.activeCalendarRole === "owner" ||
+    state.activeCalendarRole === "editor"
+  );
 }
 
 function updateSettingsUI() {
