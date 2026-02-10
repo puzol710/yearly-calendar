@@ -1598,6 +1598,7 @@ function updatePermissionUI() {
 
 function showGuestTip() {
   if (!guestTip || state.user || guestTipDismissed) return;
+  console.debug("showGuestTip: guest tooltip visible");
   guestTip.classList.remove("hidden");
   guestTip.style.display = "grid";
   positionGuestTip();
