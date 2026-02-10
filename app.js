@@ -73,6 +73,8 @@ const userClose = document.getElementById("userClose");
 const userAvatar = document.getElementById("userAvatar");
 const authGate = document.getElementById("authGate");
 const gateSignIn = document.getElementById("gateSignIn");
+const guestTip = document.getElementById("guestTip");
+const guestTipClose = document.getElementById("guestTipClose");
 const calendarPicker = document.getElementById("calendarPicker");
 const calendarList = document.getElementById("calendarList");
 const newCalendarName = document.getElementById("newCalendarName");
@@ -108,6 +110,10 @@ const CATEGORY_COLORS = [
   "#8aa87c",
   "#c09d7b",
 ];
+
+let guestTipDismissed = false;
+let guestTipTrack = null;
+
 
 const tzList =
   Intl.supportedValuesOf && Intl.supportedValuesOf("timeZone")
@@ -306,6 +312,27 @@ function bindEvents() {
       categoryFilterPopup.setAttribute("aria-hidden", "true");
     }
   });
+  if (guestTipClose) {
+    const dismiss = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      guestTipDismissed = true;
+      hideGuestTip();
+    };
+    guestTipClose.addEventListener("click", dismiss);
+    guestTipClose.addEventListener("pointerdown", dismiss);
+  }
+  if (guestTip) {
+    const dismiss = (event) => {
+      if (!event.target.closest("#guestTipClose")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      guestTipDismissed = true;
+      hideGuestTip();
+    };
+    guestTip.addEventListener("click", dismiss);
+    guestTip.addEventListener("pointerdown", dismiss);
+  }
   categoryFilterEdit.addEventListener("click", () => {
     categoryFilterPopup.classList.remove("open");
     categoryFilterPopup.setAttribute("aria-hidden", "true");
@@ -457,6 +484,8 @@ function bindEvents() {
   monthRows.addEventListener("touchmove", handleCalendarTouchMove, { passive: false });
   monthRows.addEventListener("touchend", handleCalendarTouchEnd);
   monthRows.addEventListener("touchcancel", handleCalendarTouchCancel);
+  window.addEventListener("resize", positionGuestTip);
+  window.addEventListener("scroll", positionGuestTip, { passive: true });
 }
 
 function setupAuth() {
@@ -604,11 +633,13 @@ async function createDefaultCalendar() {
 function renderCalendarPicker() {
   calendarList.innerHTML = "";
   if (!state.user) {
-    authGate.classList.remove("hidden");
+    authGate.classList.add("hidden");
     calendarPicker.classList.add("hidden");
+    showGuestTip();
     return;
   }
   authGate.classList.add("hidden");
+  hideGuestTip();
 
   if (!state.calendars.length) {
     calendarPicker.classList.remove("hidden");
@@ -1501,6 +1532,7 @@ function setSignedOutUI() {
   signOutBtn.disabled = true;
   updatePermissionUI();
   userAvatar.textContent = "GU";
+  showGuestTip();
 }
 
 function setSignedInUI(user) {
@@ -1524,6 +1556,7 @@ function setSignedInUI(user) {
     .slice(0, 2)
     .toUpperCase();
   userAvatar.textContent = initials || "U";
+  hideGuestTip();
 }
 
 function setFormsDisabled(disabled) {
@@ -1560,12 +1593,65 @@ function updatePermissionUI() {
   updateSettingsUI();
 }
 
+function showGuestTip() {
+  if (!guestTip || state.user || guestTipDismissed) return;
+  guestTip.classList.remove("hidden");
+  guestTip.style.display = "grid";
+  positionGuestTip();
+  startGuestTipTracking();
+}
+
+function hideGuestTip() {
+  if (!guestTip) return;
+  guestTip.classList.add("hidden");
+  guestTip.style.display = "none";
+  stopGuestTipTracking();
+}
+
+function positionGuestTip() {
+  if (!guestTip || guestTip.classList.contains("hidden")) return;
+  const rect = userBtn.getBoundingClientRect();
+  const tipWidth = guestTip.offsetWidth;
+  const tipHeight = guestTip.offsetHeight;
+  const padding = 12;
+  let left = rect.right - tipWidth;
+  left = Math.max(padding, Math.min(left, window.innerWidth - tipWidth - padding));
+  let top = rect.bottom + 10;
+  if (top + tipHeight > window.innerHeight - padding) {
+    top = rect.top - tipHeight - 10;
+  }
+  const anchor = rect.left + rect.width / 2;
+  const arrowLeft = Math.max(
+    16,
+    Math.min(anchor - left - 8, tipWidth - 24)
+  );
+  guestTip.style.top = `${Math.max(padding, top)}px`;
+  guestTip.style.left = `${left}px`;
+  guestTip.style.setProperty("--guest-tip-arrow-left", `${arrowLeft}px`);
+}
+
+function startGuestTipTracking() {
+  if (guestTipTrack) return;
+  const tick = () => {
+    positionGuestTip();
+    guestTipTrack = requestAnimationFrame(tick);
+  };
+  guestTipTrack = requestAnimationFrame(tick);
+}
+
+function stopGuestTipTracking() {
+  if (!guestTipTrack) return;
+  cancelAnimationFrame(guestTipTrack);
+  guestTipTrack = null;
+}
+
 function canShareCalendar() {
   return (
     state.activeCalendarRole === "owner" ||
     state.activeCalendarRole === "editor"
   );
 }
+
 
 function updateSettingsUI() {
   if (!calendarNameInput || !defaultCalendarToggle || !sharedWithList) return;
