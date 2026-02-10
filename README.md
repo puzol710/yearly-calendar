@@ -5,9 +5,11 @@ A single-page, linear annual calendar designed for shared planning. It renders a
 ## Features
 - Annual view with one row per month and 31 day columns
 - Multi-day event bars and drag-to-create across days and months
-- Category pills for filtering and color management
+- Category pills for filtering and color management (desktop)
+- Mobile category filter popup with pill-style multi-select and select/clear toggle
 - Event popup for view/edit, descriptions, and history
 - Recurrence (daily/weekly/monthly/yearly) with safe time validation
+- Duplicate category prevention with user feedback
 - Shared calendars with owner/editor/viewer roles
 - Invite links (no email required) with login-gated acceptance
 
@@ -111,4 +113,3 @@ Supabase is configured in `index.html`:
 ## Deployment
 - GitHub repo: `puzol710/yearly-calendar`
 - Vercel auto-deploys from `main`.
-
