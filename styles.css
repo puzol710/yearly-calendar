@@ -1060,6 +1060,16 @@ body.hide-weekday .weekday-mini {
     padding: 6px 2px;
   }
 
+  .event-popup {
+    align-items: flex-start;
+    padding: 16px 8px;
+  }
+
+  .event-popup-card {
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+  }
+
   .month-grid {
     min-width: calc(var(--day-col-width) * 31);
   }

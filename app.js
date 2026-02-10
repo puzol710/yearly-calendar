@@ -449,6 +449,10 @@ function bindEvents() {
   monthRows.addEventListener("mousedown", handleCalendarMouseDown);
   monthRows.addEventListener("mousemove", handleCalendarMouseMove);
   window.addEventListener("mouseup", handleCalendarMouseUp);
+  monthRows.addEventListener("pointerdown", handleCalendarPointerDown);
+  monthRows.addEventListener("pointermove", handleCalendarPointerMove, { passive: false });
+  window.addEventListener("pointerup", handleCalendarPointerUp);
+  window.addEventListener("pointercancel", handleCalendarPointerCancel);
 }
 
 function setupAuth() {
@@ -1240,6 +1244,7 @@ function openCreatePopup(startParts, endParts) {
 }
 
 let dragSelection = null;
+let touchDrag = null;
 let popupEventId = null;
 let popupMode = "view";
 let pendingCategoryCreate = false;
@@ -1279,6 +1284,82 @@ function handleCalendarMouseUp() {
   clearDragHighlight();
 
   openCreatePopup(min, max);
+}
+
+function handleCalendarPointerDown(event) {
+  if (event.pointerType !== "touch") return;
+  if (isReadOnly()) return;
+  const cell = event.target.closest(".day-cell");
+  if (!cell || cell.classList.contains("out-month")) return;
+  if (event.target.closest(".event-bar")) return;
+  const parts = getCellDateParts(cell);
+  if (!parts) return;
+
+  const startX = event.clientX;
+  const startY = event.clientY;
+  const timer = window.setTimeout(() => {
+    if (!touchDrag) return;
+    touchDrag.active = true;
+    dragSelection = { start: touchDrag.start, end: touchDrag.end };
+    updateDragHighlight();
+  }, 200);
+
+  touchDrag = {
+    pointerId: event.pointerId,
+    start: parts,
+    end: parts,
+    startX,
+    startY,
+    active: false,
+    timer,
+  };
+}
+
+function handleCalendarPointerMove(event) {
+  if (!touchDrag || event.pointerId !== touchDrag.pointerId) return;
+  const dx = event.clientX - touchDrag.startX;
+  const dy = event.clientY - touchDrag.startY;
+  const distance = Math.hypot(dx, dy);
+
+  if (!touchDrag.active) {
+    if (distance > 10) {
+      clearTimeout(touchDrag.timer);
+      touchDrag = null;
+    }
+    return;
+  }
+
+  event.preventDefault();
+  const cell = event.target.closest(".day-cell");
+  if (!cell || cell.classList.contains("out-month")) return;
+  const parts = getCellDateParts(cell);
+  if (!parts) return;
+  touchDrag.end = parts;
+  dragSelection = { start: touchDrag.start, end: touchDrag.end };
+  updateDragHighlight();
+}
+
+function handleCalendarPointerUp(event) {
+  if (!touchDrag || event.pointerId !== touchDrag.pointerId) return;
+  clearTimeout(touchDrag.timer);
+  const wasActive = touchDrag.active;
+  const start = touchDrag.start;
+  const end = touchDrag.end;
+  touchDrag = null;
+  if (!wasActive) {
+    openCreatePopup(start, start);
+    return;
+  }
+  dragSelection = { start, end };
+  handleCalendarMouseUp();
+}
+
+function handleCalendarPointerCancel(event) {
+  if (!touchDrag || event.pointerId !== touchDrag.pointerId) return;
+  clearTimeout(touchDrag.timer);
+  touchDrag = null;
+  dragSelection = null;
+  clearDragHighlight();
 }
 
 function updateDragHighlight() {
