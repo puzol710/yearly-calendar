@@ -343,6 +343,50 @@ body {
   cursor: pointer;
 }
 
+.guest-tip {
+  position: fixed;
+  z-index: 80;
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px;
+  border: 1px solid var(--grid-line);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+  width: min(240px, 85vw);
+  display: grid;
+  gap: 8px;
+}
+
+.guest-tip::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: var(--guest-tip-arrow-left, 22px);
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-left: 1px solid var(--grid-line);
+  border-top: 1px solid var(--grid-line);
+  transform: rotate(45deg);
+}
+
+.guest-tip-title {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.guest-tip-body {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.guest-tip button {
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+}
+
+
 #saveCalendarSettings {
   border-radius: 999px;
   border: 1px solid var(--grid-line);
