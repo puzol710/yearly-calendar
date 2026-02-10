@@ -15,8 +15,16 @@
             <div class="category-pill-row">
               <div class="category-label">Categories</div>
               <div id="categoryPills" class="category-pills"></div>
+              <button id="categoryToggleAll" type="button" class="category-pill edit">
+                Select All
+              </button>
               <button id="categoryEditBtn" type="button" class="category-pill edit">
                 Edit
+              </button>
+            </div>
+            <div class="category-filter-mobile">
+              <button id="categoryFilterBtnMobile" type="button" class="category-pill">
+                Categories
               </button>
             </div>
           </div>
@@ -226,6 +234,18 @@
         <div class="event-popup-actions">
           <button id="shareSend" type="button">Copy Invite Link</button>
           <button id="shareClose" type="button" class="ghost">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="categoryFilterPopup" class="event-popup" aria-hidden="true">
+      <div class="event-popup-card category-filter-card">
+        <div class="event-popup-title">Filter Categories</div>
+        <div id="categoryFilterList" class="category-filter-list"></div>
+        <div class="event-popup-actions">
+          <button id="categoryFilterToggleAll" type="button" class="ghost">Select All</button>
+          <button id="categoryFilterEdit" type="button" class="ghost">Edit</button>
+          <button id="categoryFilterClose" type="button" class="ghost">Close</button>
         </div>
       </div>
     </div>

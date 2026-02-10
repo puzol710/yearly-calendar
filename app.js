@@ -17,6 +17,13 @@ const historyBody = document.getElementById("historyBody");
 const historyClose = document.getElementById("historyClose");
 const categoryPills = document.getElementById("categoryPills");
 const categoryEditBtn = document.getElementById("categoryEditBtn");
+const categoryToggleAll = document.getElementById("categoryToggleAll");
+const categoryFilterBtnMobile = document.getElementById("categoryFilterBtnMobile");
+const categoryFilterPopup = document.getElementById("categoryFilterPopup");
+const categoryFilterList = document.getElementById("categoryFilterList");
+const categoryFilterEdit = document.getElementById("categoryFilterEdit");
+const categoryFilterClose = document.getElementById("categoryFilterClose");
+const categoryFilterToggleAll = document.getElementById("categoryFilterToggleAll");
 const eventPopup = document.getElementById("eventPopup");
 const eventPopupTitle = document.getElementById("eventPopupTitle");
 const eventPopupMeta = document.getElementById("eventPopupMeta");
@@ -275,6 +282,43 @@ function bindEvents() {
   });
   categoryEditBtn.addEventListener("click", () => {
     openCategoryManager();
+  });
+  categoryToggleAll.addEventListener("click", () => {
+    if (isAllCategoriesSelected()) {
+      state.filterCategoryIds = ["__none__"];
+    } else {
+      state.filterCategoryIds = [];
+    }
+    renderAll();
+    saveSettings();
+  });
+  categoryFilterBtnMobile.addEventListener("click", () => {
+    categoryFilterPopup.classList.add("open");
+    categoryFilterPopup.setAttribute("aria-hidden", "false");
+  });
+  categoryFilterClose.addEventListener("click", () => {
+    categoryFilterPopup.classList.remove("open");
+    categoryFilterPopup.setAttribute("aria-hidden", "true");
+  });
+  categoryFilterPopup.addEventListener("click", (event) => {
+    if (event.target === categoryFilterPopup) {
+      categoryFilterPopup.classList.remove("open");
+      categoryFilterPopup.setAttribute("aria-hidden", "true");
+    }
+  });
+  categoryFilterEdit.addEventListener("click", () => {
+    categoryFilterPopup.classList.remove("open");
+    categoryFilterPopup.setAttribute("aria-hidden", "true");
+    openCategoryManager();
+  });
+  categoryFilterToggleAll.addEventListener("click", () => {
+    if (isAllCategoriesSelected()) {
+      state.filterCategoryIds = ["__none__"];
+    } else {
+      state.filterCategoryIds = [];
+    }
+    renderAll();
+    saveSettings();
   });
   categoryManagerClose.addEventListener("click", closeCategoryManager);
   categoryManagerPopup.addEventListener("click", (event) => {
@@ -897,6 +941,17 @@ function renderCategoryManagerList() {
         nameInput.value = category.name;
         return;
       }
+      const normalized = normalizeCategoryName(name);
+      const isDuplicate = state.categories.some(
+        (existing) =>
+          existing.id !== category.id &&
+          normalizeCategoryName(existing.name) === normalized
+      );
+      if (isDuplicate) {
+        alert("This category already exists.");
+        nameInput.value = category.name;
+        return;
+      }
       await supabaseClient
         .from("categories")
         .update({ name })
@@ -952,11 +1007,23 @@ function pickNextCategoryColor() {
   return next;
 }
 
+function normalizeCategoryName(value) {
+  return value.trim().toLowerCase();
+}
+
 async function createCategoryFromManager() {
   if (!state.user || !supabaseClient || isReadOnly()) return;
   if (!state.activeCalendarId) return;
   const name = categoryManagerName.value.trim();
   if (!name) return;
+  const normalized = normalizeCategoryName(name);
+  const isDuplicate = state.categories.some(
+    (category) => normalizeCategoryName(category.name) === normalized
+  );
+  if (isDuplicate) {
+    alert("This category already exists.");
+    return;
+  }
   const { data, error } = await supabaseClient
     .from("categories")
     .insert({
@@ -1283,6 +1350,19 @@ function setFormsDisabled(disabled) {
       el.disabled = disabled;
     });
   categoryEditBtn.disabled = disabled;
+  categoryFilterBtnMobile.disabled = disabled;
+  categoryToggleAll.disabled = disabled;
+}
+
+function isAllCategoriesSelected() {
+  return state.filterCategoryIds.length === 0;
+}
+
+function isNoCategoriesSelected() {
+  return (
+    state.filterCategoryIds.length === 1 &&
+    state.filterCategoryIds[0] === "__none__"
+  );
 }
 
 function updatePermissionUI() {
@@ -1583,6 +1663,7 @@ function renderAll() {
   const baseTitle = state.activeCalendarName || "Annual Calendar";
   yearTitle.textContent = `${baseTitle} - ${state.year}`;
   renderCategoryPills();
+  renderCategoryFilterPopup();
   renderEventFormOptions();
   renderCalendar();
   updateFilterUI();
@@ -1617,6 +1698,41 @@ function renderEventFormOptions() {
 }
 
 
+function isCategorySelected(categoryId) {
+  if (isAllCategoriesSelected()) return true;
+  if (isNoCategoriesSelected()) return false;
+  return state.filterCategoryIds.includes(categoryId);
+}
+
+function toggleCategoryFilter(categoryId) {
+  if (isNoCategoriesSelected()) {
+    state.filterCategoryIds = [categoryId];
+  } else if (isAllCategoriesSelected()) {
+    state.filterCategoryIds = state.categories
+      .map((c) => c.id)
+      .filter((id) => id !== categoryId);
+    if (state.filterCategoryIds.length === 0) {
+      state.filterCategoryIds = ["__none__"];
+    }
+  } else if (state.filterCategoryIds.includes(categoryId)) {
+    state.filterCategoryIds = state.filterCategoryIds.filter(
+      (id) => id !== categoryId
+    );
+    if (state.filterCategoryIds.length === 0) {
+      state.filterCategoryIds = ["__none__"];
+    }
+  } else {
+    state.filterCategoryIds = [...state.filterCategoryIds, categoryId];
+  }
+
+  if (state.filterCategoryIds.length === state.categories.length) {
+    state.filterCategoryIds = [];
+  }
+
+  renderAll();
+  saveSettings();
+}
+
 function renderCategoryPills() {
   categoryPills.innerHTML = "";
   if (!state.user) return;
@@ -1625,30 +1741,69 @@ function renderCategoryPills() {
     pill.type = "button";
     pill.className = "category-pill";
     pill.textContent = category.name;
-    const isActive =
-      state.filterCategoryIds.length === 0 ||
-      state.filterCategoryIds.includes(category.id);
+    const isActive = isCategorySelected(category.id);
     if (isActive) {
       pill.classList.add("active");
       pill.style.background = category.color;
     }
     pill.style.borderColor = category.color;
     pill.addEventListener("click", () => {
-      if (state.filterCategoryIds.length === 0) {
-        state.filterCategoryIds = state.categories.map((c) => c.id);
-      }
-      if (state.filterCategoryIds.includes(category.id)) {
-        state.filterCategoryIds = state.filterCategoryIds.filter(
-          (id) => id !== category.id
-        );
-      } else {
-        state.filterCategoryIds = [...state.filterCategoryIds, category.id];
-      }
-      renderAll();
-      saveSettings();
+      toggleCategoryFilter(category.id);
     });
     categoryPills.appendChild(pill);
   });
+  if (state.categories.length === 0) {
+    categoryToggleAll.classList.add("hidden");
+  } else {
+    categoryToggleAll.classList.remove("hidden");
+  }
+  if (isAllCategoriesSelected()) {
+    categoryToggleAll.textContent = "Clear All";
+  } else {
+    categoryToggleAll.textContent = "Select All";
+  }
+}
+
+function renderCategoryFilterPopup() {
+  categoryFilterList.innerHTML = "";
+  if (!state.user) return;
+
+  state.categories.forEach((category) => {
+    const pill = document.createElement("button");
+    pill.type = "button";
+    pill.className = "category-pill category-filter-pill";
+    const isActive = isCategorySelected(category.id);
+    if (isActive) {
+      pill.classList.add("active");
+      pill.style.background = category.color || "#999";
+    }
+    pill.style.borderColor = category.color || "#999";
+    const swatch = document.createElement("span");
+    swatch.className = "category-swatch";
+    swatch.style.background = category.color || "#999";
+    const label = document.createElement("span");
+    label.textContent = category.name;
+
+    pill.appendChild(swatch);
+    pill.appendChild(label);
+
+    pill.addEventListener("click", () => {
+      toggleCategoryFilter(category.id);
+    });
+
+    categoryFilterList.appendChild(pill);
+  });
+
+  if (state.categories.length === 0) {
+    categoryFilterToggleAll.classList.add("hidden");
+  } else {
+    categoryFilterToggleAll.classList.remove("hidden");
+  }
+  if (isAllCategoriesSelected()) {
+    categoryFilterToggleAll.textContent = "Clear All";
+  } else {
+    categoryFilterToggleAll.textContent = "Select All";
+  }
 }
 
 function renderCalendar() {
@@ -1824,6 +1979,9 @@ function buildEventSegments(year, displayTZ) {
     state.filterCategoryIds.length > 0
       ? new Set(state.filterCategoryIds)
       : new Set(state.categories.map((c) => c.id));
+  if (visibleCategories.has("__none__")) {
+    visibleCategories.clear();
+  }
 
   const occurrences = state.events
     .filter((event) => visibleCategories.has(event.category_id))
