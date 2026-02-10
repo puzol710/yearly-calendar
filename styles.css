@@ -218,6 +218,17 @@ body {
   overscroll-behavior: contain;
 }
 
+.settings-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-content {
+  display: grid;
+  gap: 8px;
+}
+
 .event-popup-form {
   display: none;
   gap: 8px;
@@ -1094,6 +1105,13 @@ body.hide-weekday .weekday-mini {
 
   .event-popup-actions {
     margin-top: auto;
+  }
+
+  .settings-content {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
   }
 
   .month-grid {

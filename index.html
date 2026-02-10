@@ -189,35 +189,37 @@
     </div>
 
     <div id="settingsPopup" class="event-popup" aria-hidden="true">
-      <div class="event-popup-card">
+      <div class="event-popup-card settings-card">
         <div class="event-popup-title">Settings</div>
-        <div class="panel-subtitle">Calendar</div>
-        <label class="field">
-          <span>Calendar name</span>
-          <input id="calendarNameInput" type="text" />
-        </label>
-        <label class="field checkbox">
-          <input id="defaultCalendarToggle" type="checkbox" />
-          <span>Make this my default calendar</span>
-        </label>
-        <button id="saveCalendarSettings" type="button">Save Calendar Settings</button>
-        <button id="openCalendarPicker" type="button" class="ghost">
-          Switch Calendar
-        </button>
-        <label class="field">
-          <span>Year</span>
-          <input id="yearInput" type="number" min="1970" max="2100" />
-        </label>
-        <label class="field">
-          <span>Time zone</span>
-          <select id="displayTimeZone"></select>
-        </label>
-        <div class="panel-subtitle">Shared With</div>
-        <div id="sharedWithList" class="shared-with-list"></div>
-        <button id="deleteCalendarBtn" type="button" class="danger">
-          Delete Calendar
-        </button>
-        <button id="settingsClose" type="button" class="ghost">Close</button>
+        <div class="settings-content">
+          <div class="panel-subtitle">Calendar</div>
+          <label class="field">
+            <span>Calendar name</span>
+            <input id="calendarNameInput" type="text" />
+          </label>
+          <label class="field checkbox">
+            <input id="defaultCalendarToggle" type="checkbox" />
+            <span>Make this my default calendar</span>
+          </label>
+          <button id="saveCalendarSettings" type="button">Save Calendar Settings</button>
+          <button id="openCalendarPicker" type="button" class="ghost">
+            Switch Calendar
+          </button>
+          <label class="field">
+            <span>Year</span>
+            <input id="yearInput" type="number" min="1970" max="2100" />
+          </label>
+          <label class="field">
+            <span>Time zone</span>
+            <select id="displayTimeZone"></select>
+          </label>
+          <div class="panel-subtitle">Shared With</div>
+          <div id="sharedWithList" class="shared-with-list"></div>
+          <button id="deleteCalendarBtn" type="button" class="danger">
+            Delete Calendar
+          </button>
+          <button id="settingsClose" type="button" class="ghost">Close</button>
+        </div>
       </div>
     </div>
 
