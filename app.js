@@ -522,6 +522,7 @@ function setupAuth() {
 
 async function handleSession(session) {
   if (!session?.user) {
+    guestTipDismissed = false;
     state.user = null;
     state.activeCalendarRole = "";
     state.activeCalendarId = null;
@@ -1532,6 +1533,7 @@ function setSignedOutUI() {
   signOutBtn.disabled = true;
   updatePermissionUI();
   userAvatar.textContent = "GU";
+  guestTipDismissed = false;
   showGuestTip();
 }
 
