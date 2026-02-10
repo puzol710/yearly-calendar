@@ -8,8 +8,11 @@ A single-page, linear annual calendar designed for shared planning. It renders a
 - Category pills for filtering and color management (desktop)
 - Mobile category filter popup with pill-style multi-select and select/clear toggle
 - Event popup for view/edit, descriptions, and history
+- Mobile long-press drag-to-create across date ranges
+- Mobile-friendly scrollable event and settings popups
 - Recurrence (daily/weekly/monthly/yearly) with safe time validation
 - Duplicate category prevention with user feedback
+- Guest sign-in tooltip that points to the avatar button
 - Shared calendars with owner/editor/viewer roles
 - Invite links (no email required) with login-gated acceptance
 
@@ -67,9 +70,7 @@ Open: `http://localhost:5173`
 ## Push to Production
 ```bash
 cd "/Users/jonathanchen/Documents/New project/annual-calendar"
-git add -A
-git commit -m "Update calendar"
-git push origin main
+pushprod
 ```
 
 If you get a “fetch first” error:
