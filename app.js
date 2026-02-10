@@ -536,6 +536,7 @@ async function handleSession(session) {
     stashInviteFromUrl();
     setSignedOutUI();
     renderAll();
+    setTimeout(showGuestTip, 0);
     return;
   }
 
@@ -1940,6 +1941,11 @@ function renderAll() {
   renderCalendar();
   updateFilterUI();
   updateSettingsUI();
+  if (state.user) {
+    hideGuestTip();
+  } else {
+    showGuestTip();
+  }
 }
 
 function renderEventFormOptions() {
