@@ -215,6 +215,7 @@ body {
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
   display: grid;
   gap: 8px;
+  overscroll-behavior: contain;
 }
 
 .event-popup-form {
@@ -249,6 +250,10 @@ body {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+  position: sticky;
+  bottom: 0;
+  padding-top: 6px;
+  background: #fff;
 }
 
 .event-popup-actions button {
@@ -258,6 +263,12 @@ body {
   border: 1px solid var(--grid-line);
   background: #fff;
   cursor: pointer;
+}
+
+.event-popup-actions .primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: transparent;
 }
 
 .hidden {
@@ -1063,11 +1074,14 @@ body.hide-weekday .weekday-mini {
   .event-popup {
     align-items: flex-start;
     padding: 16px 8px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .event-popup-card {
     max-height: calc(100vh - 32px);
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
   .month-grid {
