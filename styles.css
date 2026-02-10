@@ -1074,14 +1074,26 @@ body.hide-weekday .weekday-mini {
   .event-popup {
     align-items: flex-start;
     padding: 16px 8px;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow: hidden;
   }
 
   .event-popup-card {
-    max-height: calc(100vh - 32px);
+    max-height: calc(100svh - 32px);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .event-popup-form,
+  .event-popup-view {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+  }
+
+  .event-popup-actions {
+    margin-top: auto;
   }
 
   .month-grid {
